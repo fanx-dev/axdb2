@@ -24,7 +24,7 @@ class Storage
   private Lock lock
   
   private Int insertCount := 0
-  private [Int:Obj?] commitGroup := [:]
+  private Int commitPos := -1
   
   private StorageRes[] pool := [,]
   private Lock poolLock
@@ -117,23 +117,23 @@ class Storage
     return val
   }
   
-  Void insert(BKey key) {
+  Int insert(BKey key) {
     id := 0
     lock.sync {
         id = insertCount
         ++insertCount
         skipList.insert(key)
-        logFile.write(key)
-        
-        commitGroup[id] = null
+        logFile.write(key)        
         lret null
     }
-    //Actor.sleep(1ms)
-    
+    return id
+  }
+  
+  Void commit(Int id) {
     lock.sync {
-        if (commitGroup.containsKey(id)) {
+        if (commitPos < id) {
             logFile.flush
-            commitGroup.clear
+            commitPos = insertCount-1
         }
         lret null
     }
