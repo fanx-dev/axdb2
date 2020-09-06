@@ -2,5 +2,5 @@
 podName = axdb2_cluster
 summary = axdb2_cluster
 version = 1.0
-depends = sys 2.0, std 1.0
+depends = sys 2.0, std 1.0, concurrent 1.0, axdb2_store 1.0, asyncServer 1.0
 srcDirs = fan/*, test/*

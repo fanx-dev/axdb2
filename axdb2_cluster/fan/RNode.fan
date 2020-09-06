@@ -5,24 +5,7 @@
 //   2020-8-23 yangjiandong Creation
 //
 
-
-virtual class PersisState
-{
-  ** 服务器最后一次知道的任期号（初始化为 0，持续递增）
-  Int currentTerm
-  
-  ** 在当前获得选票的候选人的 Id
-  Int? votedFor
-  
-  ** 日志条目集；每一个条目包含一个用户状态机执行的指令，和收到时的任期号
-  Logs? logs
-  
-  ** 状态机保存快照的日志位置
-  Int snapshotPoint
-  
-  Void persistentMeta() {}
-  
-}
+using concurrent
 
 enum class Role {
   leader, follower, candidate
@@ -31,9 +14,25 @@ enum class Role {
 **
 ** RNode
 **
-class RNode : PersisState
+class RNode
 {
-    Role role := Role.follower { private set }
+    ** 服务器最后一次知道的任期号（初始化为 0，持续递增）
+    private Int currentTerm
+
+    ** 在当前获得选票的候选人的 Id
+    private Uri? votedFor
+
+    ** 状态机保存快照的日志位置
+    private Int snapshotPoint
+    
+    ** 元数据保存路径
+    private File metaFile
+    
+    ** 日志条目集；每一个条目包含一个用户状态机执行的指令，和收到时的任期号
+    private Logs logs
+
+  
+    private Role role := Role.follower { private set }
     
     ** 已知的最大的已经被提交的日志条目的索引值
     private Int commitIndex
@@ -42,51 +41,98 @@ class RNode : PersisState
     private Int lastApplied
     
     ** 本地状态机
-    StateMachine? stateMachine
-    Lock stateMachinelock := Lock()
+    private StateMachine stateMachine
+    //Lock stateMachinelock := Lock()
     
-    Lock lock := Lock()
+    //Lock lock := Lock()
     
     private Int receiveHeartbeatTime
     private Int lastSendHeartbeatTime
     private Int electionStartTime
 
     ** local server id
-    Int id
-    RConfiguration configuration
-    RpcClient? rpcClient
+    private Uri id
+    private RConfiguration configuration
+    private Uri? leaderId
     
+    new make(File dir, Str name, Uri id) {
+        stateMachine = StateMachine(dir, name)
+        configuration = RConfiguration(id, dir, name)
+        metaFile = dir + `${name}-meta`
+        loadMeta(metaFile)
+        this.id = id
+        logs = Logs(dir, name)
+    }
+
+    override Str toStr() {
+        return "currentTerm:$currentTerm, lastLog:$logs.lastIndex, commitIndex:$commitIndex, 
+                members:$configuration.members, leaderId:$leaderId"
+    }
+    
+    private Void saveMeta(File file := metaFile) {
+        path := file.pathStr
+        tempFile := File.fromPath(path+".tmp", false)
+        out := tempFile.out
+        out.writeI8(0)
+        out.writeI8(currentTerm)
+        out.writeUtf(votedFor == null ? "" : votedFor.toStr)
+        out.writeI8(snapshotPoint)
+
+        out.writeI8(commitIndex)
+        
+        out.sync
+        out.close
+        file.delete
+        tempFile.rename(file.name)
+    }
+
+    private Void loadMeta(File file) {
+        in := file.in
+        in.readS8
+        currentTerm = in.readS8
+        votedFor = in.readUtf.toUri
+        snapshotPoint = in.readS8
+
+        commitIndex = in.readS8
+        lastApplied = snapshotPoint
+
+        in.close
+    }
 
     ** 执行客户端命令
-    async Bool execute(Str command) {
+    async Bool execute(Array<Int8> command, Int type := 0) {
         if (role != Role.leader) {
             return false
         }
         
-        logEntry := LogEntry()
+        logEntry := LogEntry(currentTerm, logs.lastIndex+1, command)
         logs.add(logEntry)
         
-        lastSendHeartbeatTime = TimePoint.nowMills
-        configuration.members.each |peer|{
+        lastSendHeartbeatTime = TimePoint.nowMillis
+        configuration.eachPeer(id) |peer|{
             replicateTo(peer)
         }
+
+        await Async.sleep(5sec)
+        logs.sync
         
         while (true) {
-            await rpcClient.sleep(5sec)
             advanceCommitIndex
             if (commitIndex >= logEntry.index) {
+                
                 return true
             }
+            await Async.sleep(5sec)
         }
         return false
     }
     
     private async Bool replicateTo(Peer peer) {
-        index := peer.nextIndex
+        nextIndex := peer.nextIndex
         AppendEntriesReq? ae
-        if (logs.last.index > index) {
-            logEntry := logs.get(index)
-            prevLogEntry := logs.get(index-1)
+        if (logs.lastIndex >= nextIndex) {
+            logEntry := logs.get(nextIndex)
+            prevLogEntry := logs.get(nextIndex-1)
             ae = AppendEntriesReq {
                 it.term = currentTerm
                 it.leaderId = id
@@ -97,24 +143,17 @@ class RNode : PersisState
             }
         }
         else {
-            ae = AppendEntriesReq {
-                it.term = currentTerm
-                it.leaderId = id
-                it.prevLogIndex = prevLogEntry.index
-                it.prevLogTerm = prevLogEntry.term
-                it.entries = [,]
-                it.leaderCommit = commitIndex
-            }
+            return false
         }
         
-        res := await rpcClient.sendAppendEntries(peer, ae)
+        res := await peer.sendAppendEntries(ae)
         if (res.success) {
-            peer.nextIndex = index + 1
-            peer.matchIndex = index
+            peer.nextIndex = nextIndex + 1
+            peer.matchIndex = nextIndex
             return true
         }
         else {
-            peer.nextIndex = index - 1
+            peer.nextIndex = nextIndex - 1
             //retry
             //replicate(peer)
         }
@@ -122,11 +161,11 @@ class RNode : PersisState
     }
     
     private Void advanceCommitIndex() {
-        for (i:=commitIndex; i<=logs.last.index; ++i) {
+        for (i:=commitIndex; i<=logs.lastIndex; ++i) {
             logEntry := logs.get(i)
             if (logEntry.term == currentTerm) {
                 count := 0
-                configuration.members.each |peer|{
+                configuration.eachPeer(id) |peer|{
                     if (peer.matchIndex > logEntry.index) ++count
                 }
                 if (count > configuration.members.size/2) {
@@ -138,19 +177,26 @@ class RNode : PersisState
     
     
     private Void checkApplayLog() {
-        stateMachinelock.sync {
-            if (commitIndex > lastApplied) {
-                //TODO
-                ++lastApplied
-                logEntry := logs.get(lastApplied)
+        if (commitIndex > lastApplied) {
+            //TODO
+            ++lastApplied
+            logEntry := logs.get(lastApplied)
+
+            if (logEntry.type == 0) {
                 stateMachine.apply(logEntry)
             }
-            lret null
+            else if (logEntry.type == 1 || logEntry.type == 2) {
+                configuration.apply(logEntry)
+            }
+            else {
+                //becomeLeader
+            }
         }
+        //lret null
     }
     
     internal AppendEntriesRes onAppendEntries(AppendEntriesReq req) {
-        receiveHeartbeatTime = TimePoint.nowMills
+        receiveHeartbeatTime = TimePoint.nowMillis
         if (req.term > currentTerm) {
             stepDown(req.term)
         }
@@ -163,7 +209,7 @@ class RNode : PersisState
         }
         
         logEntry := logs.get(req.prevLogIndex)
-        if (logEntry.term != prevLogTerm) {
+        if (logEntry.term != req.prevLogTerm) {
             return AppendEntriesRes(currentTerm, false)
         }
         
@@ -175,12 +221,24 @@ class RNode : PersisState
         }
         
         checkApplayLog
+        this.leaderId = req.leaderId
+        return AppendEntriesRes(currentTerm, true)
     }
     
     private Void sendHeartbeat() {
         lastSendHeartbeatTime = TimePoint.nowMillis
-        configuration.members.each |peer|{
-            replicateTo(peer)
+        
+        ae := AppendEntriesReq {
+                it.term = currentTerm
+                it.leaderId = id
+                it.prevLogIndex = -1
+                it.prevLogTerm = -1
+                it.entries = [,]
+                it.leaderCommit = commitIndex
+            }
+        
+        configuration.eachPeer(id) |peer|{
+            peer.sendAppendEntries(ae)
         }
     }
     
@@ -188,12 +246,18 @@ class RNode : PersisState
         currentTerm = term
         role = Role.follower
         votedFor = null
-        persistentMeta
+        saveMeta
     }
     
     private Void becomeLeader() {
         role = Role.leader
-        execute("")
+        execute("becomeLeader".toUtf8, 3)
+
+        lastIndex := logs.lastIndex
+        configuration.eachPeer(id) |peer|{
+            peer.nextIndex = lastIndex + 1
+            peer.matchIndex = 0
+        }
     }
     
     
@@ -232,10 +296,10 @@ class RNode : PersisState
         }
         
         if (votedFor == null || votedFor == req.candidateId) {
-            logEntry := logs.last
-            if (req.lastLogIndex > log.index) {
+            logEntry := logs.lastIndex
+            if (req.lastLogIndex > logEntry) {
                 votedFor = req.candidateId
-                persistentMeta
+                saveMeta
                 return RequestVoteRes(currentTerm, true)
             }
         }
@@ -252,13 +316,13 @@ class RNode : PersisState
         req := RequestVoteReq {
             it.term = currentTerm
             it.candidateId = id
-            it.lastLogIndex = logEntry.index
-            it.lastLogTerm = logEntry.term
+            it.lastLogIndex = logEntry == null ? -1 : logEntry.index
+            it.lastLogTerm = logEntry == null ? -1 : logEntry.term
         }
         
-        list := RequestVoteRes[,]
-        configuration.members.each |peer|{
-            r := rpcClient.sendRequestVote(peer, req)
+        list := Promise<RequestVoteRes>[,]
+        configuration.eachPeer(id) |peer|{
+            r := peer.sendRequestVote(req)
             list.add(r)
         }
         
@@ -280,10 +344,11 @@ class RNode : PersisState
     }
     
     private Void takeSnapshot() {
-        stateMachinelock.sync {
-            stateMachine.saveSnapshot
-            snapshotPoint = lastApplied
-            persistentMeta
-        }
+        //stateMachinelock.sync {
+        stateMachine.saveSnapshot
+        snapshotPoint = lastApplied
+        saveMeta
+        //    lret null
+        //}
     }
 }

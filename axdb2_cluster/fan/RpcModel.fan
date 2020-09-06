@@ -10,7 +10,7 @@ class AppendEntriesReq
     ** 领导人的任期号
     Int term
     ** 领导人的 Id，以便于跟随者重定向请求
-    Int leaderId
+    Uri? leaderId
     ** 新的日志条目紧随之前的索引值
     Int prevLogIndex
     ** prevLogIndex 条目的任期号
@@ -39,7 +39,7 @@ class RequestVoteReq {
     ** 候选人的任期号
     Int term	
     ** 请求选票的候选人的 Id
-    Int candidateId	
+    Uri? candidateId
     ** 候选人的最后日志条目的索引值
     Int lastLogIndex	
     ** 候选人最后日志条目的任期号
@@ -50,7 +50,7 @@ class RequestVoteRes {
     ** 当前任期号，以便于候选人去更新自己的任期号
     Int term
     ** 候选人赢得了此张选票时为真
-    Int voteGranted
+    Bool voteGranted
     
     new make(Int term, Bool voteGranted) {
         this.term = term
