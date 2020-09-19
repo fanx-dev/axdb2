@@ -16,12 +16,38 @@ class AppendEntriesReq
     ** prevLogIndex 条目的任期号
     Int prevLogTerm
     ** 准备存储的日志条目（表示心跳时为空；一次性发送多个是为了提高效率）
-    LogEntry[]? entries
+    LogEntry[] entries := [,]
     ** 领导人已经提交的日志的索引值
     Int leaderCommit
+
+    Void write(OutStream out) {
+        out.writeI8(term)
+        s := leaderId == null ? "" leaderId.toStr
+        out.writeUtf(s)
+        out.writeI8(prevLogIndex)
+        out.writeI8(prevLogTerm)
+        out.writeI4(entries.size)
+        entries.each |e| { e.write(out) }
+        out.writeI8(leaderCommit)
+    }
+
+    static AppendEntriesReq read(InStream in) {
+        AppendEntriesReq {
+            term = in.readS8
+            s := in.readUtf
+            if (s.size > 0) leaderId = s.toUri
+            prevLogIndex = in.readS8
+            prevLogTerm = in.readS8
+            entriesSize = in.readS4
+            entriesSize.times {
+                entries.add(LogEntry.read(in))
+            }
+            leaderCommit = in.readS8
+        }
+    }
 }
 
-
+@Serializable
 class AppendEntriesRes {
     ** 当前的任期号，用于领导人去更新自己
     Int term
@@ -34,7 +60,7 @@ class AppendEntriesRes {
     }
 }
 
-
+@Serializable
 class RequestVoteReq {
     ** 候选人的任期号
     Int term	
@@ -46,6 +72,7 @@ class RequestVoteReq {
     Int lastLogTerm	
 }
 
+@Serializable
 class RequestVoteRes {
     ** 当前任期号，以便于候选人去更新自己的任期号
     Int term

@@ -29,12 +29,21 @@ class LogEntry {
   }
 
   Void write(OutStream out) {
-
+    out.write(type)
+    out.writeI8(term)
+    out.writeI8(index)
+    out.writeI4(command.size)
+    out.writeBytes(command)
   }
 
   static LogEntry read(InStream in) {
-    //TODO
-    return LogEntry(0, 0, "".toUtf8)
+    type := in.read
+    term := in.readS8
+    index = in.reasS8
+    size := in.readS4
+    bytes := Array<Int8>(size)
+    in.readBytes(bytes)
+    return LogEntry(term, index, bytes, type)
   }
 }
 

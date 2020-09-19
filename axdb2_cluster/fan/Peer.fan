@@ -28,15 +28,60 @@ class Peer
         this.id = id
         client = HttpClient(id.host, id.port)
     }
-    
-    async AppendEntriesRes sendAppendEntries(AppendEntriesReq req) {
-    //TODO
-        return AppendEntriesRes(0, false)
+
+    private Void onErr(Err err) {
+        client.close
+        client = HttpClient(id.host, id.port)
     }
 
-    async RequestVoteRes sendRequestVote(RequestVoteReq req) {
-      //TODO
-        return RequestVoteRes(0, false)
+    async AppendEntriesRes sendAppendEntries(AppendEntriesReq req) {
+        try {
+            return await _sendAppendEntries(req)
+        }
+        catch (Err e) {
+            onErr(e)
+            return null
+        }
+    }
+    
+    private async AppendEntriesRes _sendAppendEntries(AppendEntriesReq req) {
+        uri := `/appendEntries`
+        param := Buf()
+        req.write(param.in)
+        param.flip
+        base64 := param.base64
+        uri = uri.plusQuery(["req":base64])
+
+        echo("req $uri")
+        await client.get(uri)
+
+        buf := await client.read
+        return buf.in.readObj as AppendEntriesRes
+        //return AppendEntriesRes(0, false)
+    }
+
+    async RequestVoteRes? sendRequestVote(RequestVoteReq req) {
+        try {
+            return await _sendRequestVote(req)
+        }
+        catch (Err e) {
+            onErr(e)
+            return null
+        }
+    }
+
+    private async RequestVoteRes _sendRequestVote(RequestVoteReq req) {
+        uri := `/requestVote`
+        param := StrBuf()
+        param.out.writeObj(req)
+        base64 := param.base64
+        uri = uri.plusQuery(["req":base64.toStr])
+
+        echo("req $uri")
+        await client.get(uri)
+
+        buf := await client.read
+        return buf.in.readObj as RequestVoteRes
     }
 
     override Bool equals(Obj? other) {
