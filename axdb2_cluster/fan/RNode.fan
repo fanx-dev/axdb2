@@ -77,8 +77,6 @@ class RNode
         out.writeI8(currentTerm)
         out.writeUtf(votedFor == null ? "" : votedFor.toStr)
         out.writeI8(snapshotPoint)
-
-        out.writeI8(commitIndex)
         
         out.sync
         out.close
@@ -93,7 +91,7 @@ class RNode
         votedFor = in.readUtf.toUri
         snapshotPoint = in.readS8
 
-        commitIndex = in.readS8
+        commitIndex = snapshotPoint
         lastApplied = snapshotPoint
 
         in.close
