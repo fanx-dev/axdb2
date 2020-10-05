@@ -10,6 +10,7 @@ const class RActor : Actor {
 
   new make(File dir, Str name, Uri id) : super.make() {
     node = Unsafe(RNode(dir, name, id))
+    this.sendLater(200ms, ["checkTimeout"])
   }
 
   protected override Obj? receive(Obj? msg) {
@@ -17,20 +18,30 @@ const class RActor : Actor {
     
     Obj[] args := msg
     method := args[0]
+    
+    //echo("RActor receive: $msg")
+    
+    Obj? res
     if (method == "execute") {
-      Array<Int8> command := args[1]
+      //echo(args)
+      Str command := args[1]
       Int type := args[2]
-      node.val.execute(command, type)
+      res = node.val.execute(command, type)
     }
     else if (method == "appendEntries") {
       AppendEntriesReq req := args[1]
-      node.val.onAppendEntries(req)
+      res = node.val.onAppendEntries(req)
     }
     else if (method == "requestVote") {
       RequestVoteReq req := args[1]
-      node.val.onRequestVote(req)
+      res = node.val.onRequestVote(req)
+    }
+    else if (method == "checkTimeout") {
+      node.val.checkTimeout
+      this.sendLater(200ms, ["checkTimeout"])
+      return null
     }
 
-    return null
+    return Unsafe(res)
   }
 }

@@ -47,7 +47,7 @@ class Peer
     private async AppendEntriesRes? _sendAppendEntries(AppendEntriesReq req) {
         uri := `/appendEntries`
         param := Buf()
-        req.write(param.out)
+        param.out.writeObj(req)
         param.flip
         base64 := param.toBase64
         uri = uri.plusQuery(["req":base64])

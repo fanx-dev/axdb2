@@ -19,32 +19,6 @@ class AppendEntriesReq
     LogEntry[] entries := [,]
     ** 领导人已经提交的日志的索引值
     Int leaderCommit
-
-    Void write(OutStream out) {
-        out.writeI8(term)
-        s := leaderId == null ? "" : leaderId.toStr
-        out.writeUtf(s)
-        out.writeI8(prevLogIndex)
-        out.writeI8(prevLogTerm)
-        out.writeI4(entries.size)
-        entries.each |e| { e.write(out) }
-        out.writeI8(leaderCommit)
-    }
-
-    static AppendEntriesReq read(InStream in) {
-        AppendEntriesReq {
-            term = in.readS8
-            s := in.readUtf
-            if (s.size > 0) leaderId = s.toUri
-            prevLogIndex = in.readS8
-            prevLogTerm = in.readS8
-            entriesSize := in.readS4
-            for (i:=0; i<entriesSize; ++i) {
-                it.entries.add(LogEntry.read(in))
-            }
-            leaderCommit = in.readS8
-        }
-    }
 }
 
 @Serializable

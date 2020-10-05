@@ -56,17 +56,19 @@ class RNode
     private Uri? leaderId
     
     new make(File dir, Str name, Uri id) {
+        if (!dir.isDir) {
+            throw ArgErr("$dir is not dir")
+        }
         stateMachine = StateMachine(dir, name)
         configuration = RConfiguration(id, dir, name)
         metaFile = dir + `${name}-meta`
-        loadMeta(metaFile)
+        if (metaFile.exists) loadMeta(metaFile)
         this.id = id
         logs = Logs(dir, name)
     }
 
     override Str toStr() {
-        return "currentTerm:$currentTerm, lastLog:$logs.lastIndex, commitIndex:$commitIndex, 
-                members:$configuration.members, leaderId:$leaderId"
+        return "currentTerm:$currentTerm, lastLog:$logs.lastIndex, commitIndex:$commitIndex, members:$configuration.members, leaderId:$leaderId"
     }
     
     private Void saveMeta(File file := metaFile) {
@@ -98,20 +100,21 @@ class RNode
     }
 
     ** 执行客户端命令
-    async Bool execute(Array<Int8> command, Int type := 0) {
+    async Bool execute(Str command, Int type) {
         if (role != Role.leader) {
             return false
         }
         
         logEntry := LogEntry(currentTerm, logs.lastIndex+1, command)
         logs.add(logEntry)
+        //echo(logs.lastIndex)
         
         lastSendHeartbeatTime = TimePoint.nowMillis
         configuration.eachPeer(id) |peer|{
             replicateTo(peer)
         }
 
-        await Async.sleep(5sec)
+        await Async.sleep(5ms)
         logs.sync
         
         while (true) {
@@ -120,7 +123,7 @@ class RNode
                 
                 return true
             }
-            await Async.sleep(5sec)
+            await Async.sleep(5ms)
         }
         return false
     }
@@ -159,14 +162,16 @@ class RNode
     }
     
     private Void advanceCommitIndex() {
-        for (i:=commitIndex; i<=logs.lastIndex; ++i) {
+        //echo("advanceCommitIndex: commitIndex:$commitIndex, logs:$logs.lastIndex")
+        for (i:=commitIndex+1; i<=logs.lastIndex; ++i) {
             logEntry := logs.get(i)
             if (logEntry.term == currentTerm) {
-                count := 0
+                count := 1
                 configuration.eachPeer(id) |peer|{
                     if (peer.matchIndex > logEntry.index) ++count
                 }
                 if (count > configuration.members.size/2) {
+                    echo("commitIndex to: $i")
                     commitIndex = i
                 }
             }
@@ -249,7 +254,10 @@ class RNode
     
     private Void becomeLeader() {
         role = Role.leader
-        execute("becomeLeader".toUtf8, 3)
+        leaderId = id
+        echo("becomeLeader:$this")
+        
+        execute("becomeLeader", 3)
 
         lastIndex := logs.lastIndex
         configuration.eachPeer(id) |peer|{
@@ -260,6 +268,7 @@ class RNode
     
     
     internal Void checkTimeout() {
+        //echo("checkTimeout:$this")
         now := TimePoint.nowMillis
         // 心跳超时
         if (role == Role.follower) {
@@ -307,6 +316,7 @@ class RNode
     
     ** 开始选举
     private async Void startElection() {
+        echo("startElection:$this")
         ++currentTerm
         votedFor = id
         electionStartTime = TimePoint.nowMillis
@@ -324,7 +334,7 @@ class RNode
             list.add(r)
         }
         
-        count := 0
+        count := 1
         voteGranted := false
         for (i:=0; i<list.size; ++i) {
             RequestVoteRes res := await list[i]
@@ -336,6 +346,12 @@ class RNode
                 }
             }
         }
+        if (!voteGranted) {
+            if (count > configuration.members.size/2) {
+                voteGranted = true
+            }
+        }
+        echo("voteGranted:$voteGranted, count:$count")
         if (voteGranted) {
             becomeLeader
         }

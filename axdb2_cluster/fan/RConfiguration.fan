@@ -44,7 +44,7 @@ class RConfiguration
   }
 
   internal Void apply(LogEntry e) {
-    p := Peer(Str.fromUtf8(e.command).toUri)
+    p := Peer(e.command.toUri)
     if (e.type == 1) {
       members.add(p)
     }

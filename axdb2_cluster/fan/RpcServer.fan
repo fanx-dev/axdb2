@@ -1,6 +1,7 @@
 
 
 using asyncServer
+using concurrent
 
 const class RpcServer : HttpHandler {
 
@@ -11,33 +12,28 @@ const class RpcServer : HttpHandler {
   }
 
   override async Void onHttpService(HttpReq req, HttpRes res) {
-    //echo("Server receive: "+req.headers)
-    // res.headers["Content-Type"] = "text/html; charset=utf-8"
-
-    // buf := NioBuf.makeMem(1024)
-    // buf.printLine("<html>
-    //                     <body>Hello World</body>
-    //                    </html>")
-    // buf.flip
-    //await res.writeFixed(buf)
-    //await res.writeChunk(buf)
-
     uri := req.uri
-    path := uri.pathStr
-
+    path := uri.path[0]
     reqStr := uri.query["req"]
-    buf := BufCrypto.fromBase64(reqStr)
+    
+    echo("onHttpService:$uri, path:$path")
+    if (path == "execute") {
+        f := await actor.send([path, reqStr, 1])
+        rc := await (f.get as Unsafe).val
+        
+        buf2 := NioBuf.makeMem(1024)
+        buf2.printLine("$rc")
+        buf2.flip
+        await res.writeFixed(buf2)
+        return
+    }
 
-    Obj? arg
-    if (path == "appendEntries") {
-      arg = AppendEntriesReq.read(buf.in)
-    }
-    else {
-      arg = buf.in.readObj
-    }
+    buf := BufCrypto.fromBase64(reqStr)
+    Obj? arg := buf.in.readObj
     args := [path, arg]
 
-    await actor.send(args)
+    f2 := await actor.send(args)
+    await (f2.get as Unsafe).val
   }
 
 }

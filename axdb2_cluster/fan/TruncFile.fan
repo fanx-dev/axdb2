@@ -39,7 +39,7 @@ class TruncFile {
 
     list := TruncFilePart[,]
     dir.listFiles.each |File f| {
-      if (f.name.startsWith(name) && f.ext == "log") {
+      if (f.name.startsWith(name) && f.ext == "trc") {
         num := f.basename[(name.size+1)..-1]
         part := TruncFilePart(f, num.toInt)
         list.add(part)
@@ -58,7 +58,7 @@ class TruncFile {
   }
 
   Void truncBefore(Int pos) {
-    for (i:=0; i<parts.size; ++i) {
+    for (i:=0; i<parts.size-1; ++i) {
       p := parts[i]
       if (p.offset + p.file.size <= pos) {
         p.file.delete
@@ -72,7 +72,7 @@ class TruncFile {
   }
 
   Void truncAfter(Int pos) {
-    for (i:=parts.size; i>=0; --i) {
+    for (i:=parts.size-1; i>=0; --i) {
       p := parts[i]
       if (p.offset > pos) {
         p.file.delete
@@ -90,7 +90,7 @@ class TruncFile {
   }
 
   InStream? in(Int pos) {
-    for (i:=parts.size; i>=0; --i) {
+    for (i:=parts.size-1; i>=0; --i) {
       p := parts[i]
       if (pos > p.offset) {
         buf := parts.last.buf
@@ -103,7 +103,7 @@ class TruncFile {
 
   ** return the byte size of read
   Int read(Int pos, |InStream| f) {
-    for (i:=parts.size; i>=0; --i) {
+    for (i:=parts.size-1; i>=0; --i) {
       p := parts[i]
       if (pos > p.offset) {
         buf := parts.last.buf
@@ -130,6 +130,11 @@ class TruncFile {
   Void write(Buf buf) {
     out.writeBuf(buf)
   }
+  
+  Int size() {
+    part := parts.last
+    return part.offset + part.buf.size
+  }
 
   Void sync() {
     out.sync
@@ -147,7 +152,7 @@ class TruncFile {
       lastPart.close
     }
     partName := name + "-" + pos.toStr
-    partFile := dir + `${partName}.log`
+    partFile := dir + `${partName}.trc`
     part := TruncFilePart(partFile, pos)
     parts.add(part)
     return part

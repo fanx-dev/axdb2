@@ -5,13 +5,14 @@
 //   2020-8-23 yangjiandong Creation
 //
 
-class LogEntry {
+@Serializable { simple = true }
+const class LogEntry {
   const Int type
   const Int term
   const Int index
-  Array<Int8> command
+  const Str command
 
-  new make(Int term, Int index, Array<Int8> command, Int type:=0) {
+  new make(Int term, Int index, Str command, Int type:=0) {
     this.term = term
     this.index = index
     this.command = command
@@ -28,22 +29,9 @@ class LogEntry {
     return this.index == that.index && this.term == that.term
   }
 
-  Void write(OutStream out) {
-    out.write(type)
-    out.writeI8(term)
-    out.writeI8(index)
-    out.writeI4(command.size)
-    out.writeBytes(command)
-  }
-
-  static LogEntry read(InStream in) {
-    type := in.read
-    term := in.readS8
-    index := in.readS8
-    size := in.readS4
-    bytes := Array<Int8>(size)
-    in.readBytes(bytes)
-    return LogEntry(term, index, bytes, type)
+  static new fromStr(Str str) {
+    vs := str.splitBy(",", 4)
+    return LogEntry(vs[1].toInt, vs[2].toInt, vs[3], vs[0].toInt)
   }
 }
 
@@ -62,14 +50,15 @@ class Logs {
       while (true) {
         try {
           n := logFile.read(pos) |in| {
-            e := LogEntry.read(in)
+            e := LogEntry.fromStr(in.readLine)
             indexToPos[e.index] = pos
             flushIndex = e.index
           }
           if (n == 0) break
           pos += n
         }
-        catch {
+        catch (Err e) {
+          e.trace
           logFile.truncAfter(pos)
           break
         }
@@ -95,7 +84,7 @@ class Logs {
     }
 
     private LogEntry read(Int pos) {
-      return LogEntry.read(logFile.in(pos))
+      return LogEntry.fromStr(logFile.in(pos).readLine)
     }
     
     ** 如果已经存在的日志条目和新的产生冲突（索引值相同但是任期号不同），删除这一条和之后所有的 （5.3 节）
@@ -138,7 +127,7 @@ class Logs {
         return list.last.index
       }
       pos := indexToPos[flushIndex]
-      if (pos == null) return -1
+      if (pos == null) return 0
       return read(pos).index
     }
 
@@ -153,9 +142,15 @@ class Logs {
 
     Void sync() {
       if (list.size == 0) return
+      
+      pos := logFile.size
+      tmpBuf.clear
       list.each |e| {
-        e.write(tmpBuf.out)
+        indexToPos[e.index] = pos
+        tmpBuf.printLine(e.toStr)
+        pos += tmpBuf.pos
       }
+      
       flushIndex = list.last.index
       list.clear
       tmpBuf.flip
