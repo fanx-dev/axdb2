@@ -39,7 +39,7 @@ class LogEntry {
   static LogEntry read(InStream in) {
     type := in.read
     term := in.readS8
-    index = in.reasS8
+    index := in.readS8
     size := in.readS4
     bytes := Array<Int8>(size)
     in.readBytes(bytes)

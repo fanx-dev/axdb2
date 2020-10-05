@@ -1,6 +1,7 @@
 
 
 using concurrent
+using asyncServer
 
 const class RActor : Actor {
   const ActorWorker worker := ActorWorker.fromActor(this)
@@ -8,7 +9,7 @@ const class RActor : Actor {
   const Unsafe<RNode> node
 
   new make(File dir, Str name, Uri id) : super.make() {
-    node = Unsafe(Node(dir, name, id))
+    node = Unsafe(RNode(dir, name, id))
   }
 
   protected override Obj? receive(Obj? msg) {
@@ -19,7 +20,7 @@ const class RActor : Actor {
     if (method == "execute") {
       Array<Int8> command := args[1]
       Int type := args[2]
-      node.execute(command, type)
+      node.val.execute(command, type)
     }
     else if (method == "appendEntries") {
       AppendEntriesReq req := args[1]

@@ -5,16 +5,18 @@
 //   2020-8-23 yangjiandong Creation
 //
 
+using asyncServer
+
 **
 ** Main
 **
 class Main
 {
-  **
-  ** Main method
-  **
-  static Void main()
-  {
-    echo("Hello World")
+  static Void main(Str[] args) {
+    p := args[0].toStr
+    Server {
+      port = p.toInt
+      handler = RpcServer(`testData`.toFile, "testDb", `http://localhost:$p`)
+    }.start
   }
 }

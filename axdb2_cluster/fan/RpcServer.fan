@@ -25,8 +25,8 @@ const class RpcServer : HttpHandler {
     uri := req.uri
     path := uri.pathStr
 
-    reqStr = uri.query["req"]
-    buf := Buf.fromBase64(reqStr)
+    reqStr := uri.query["req"]
+    buf := BufCrypto.fromBase64(reqStr)
 
     Obj? arg
     if (path == "appendEntries") {
@@ -35,15 +35,9 @@ const class RpcServer : HttpHandler {
     else {
       arg = buf.in.readObj
     }
-    args := [path arg]
+    args := [path, arg]
 
-    actor.send(args)
+    await actor.send(args)
   }
 
-  static Void main() {
-    Server {
-      port = 8080
-      handler = RpcServer()
-    }.start
-  }
 }

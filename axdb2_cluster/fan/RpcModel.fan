@@ -22,7 +22,7 @@ class AppendEntriesReq
 
     Void write(OutStream out) {
         out.writeI8(term)
-        s := leaderId == null ? "" leaderId.toStr
+        s := leaderId == null ? "" : leaderId.toStr
         out.writeUtf(s)
         out.writeI8(prevLogIndex)
         out.writeI8(prevLogTerm)
@@ -38,9 +38,9 @@ class AppendEntriesReq
             if (s.size > 0) leaderId = s.toUri
             prevLogIndex = in.readS8
             prevLogTerm = in.readS8
-            entriesSize = in.readS4
-            entriesSize.times {
-                entries.add(LogEntry.read(in))
+            entriesSize := in.readS4
+            for (i:=0; i<entriesSize; ++i) {
+                it.entries.add(LogEntry.read(in))
             }
             leaderCommit = in.readS8
         }

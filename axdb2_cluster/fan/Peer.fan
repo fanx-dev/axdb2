@@ -34,7 +34,7 @@ class Peer
         client = HttpClient(id.host, id.port)
     }
 
-    async AppendEntriesRes sendAppendEntries(AppendEntriesReq req) {
+    async AppendEntriesRes? sendAppendEntries(AppendEntriesReq req) {
         try {
             return await _sendAppendEntries(req)
         }
@@ -44,12 +44,12 @@ class Peer
         }
     }
     
-    private async AppendEntriesRes _sendAppendEntries(AppendEntriesReq req) {
+    private async AppendEntriesRes? _sendAppendEntries(AppendEntriesReq req) {
         uri := `/appendEntries`
         param := Buf()
-        req.write(param.in)
+        req.write(param.out)
         param.flip
-        base64 := param.base64
+        base64 := param.toBase64
         uri = uri.plusQuery(["req":base64])
 
         echo("req $uri")
@@ -70,11 +70,11 @@ class Peer
         }
     }
 
-    private async RequestVoteRes _sendRequestVote(RequestVoteReq req) {
+    private async RequestVoteRes? _sendRequestVote(RequestVoteReq req) {
         uri := `/requestVote`
-        param := StrBuf()
+        param := Buf()
         param.out.writeObj(req)
-        base64 := param.base64
+        base64 := param.toBase64
         uri = uri.plusQuery(["req":base64.toStr])
 
         echo("req $uri")
