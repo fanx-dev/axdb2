@@ -59,7 +59,11 @@ class RNode
         if (!dir.isDir) {
             throw ArgErr("$dir is not dir")
         }
-        stateMachine = StateMachine(dir, name)
+        if (!dir.exists) {
+            dir.create
+        }
+        
+        stateMachine = MemStateMachine(dir, name)
         configuration = RConfiguration(id, dir, name)
         metaFile = dir + `${name}-meta`
         if (metaFile.exists) loadMeta(metaFile)
@@ -68,7 +72,15 @@ class RNode
     }
 
     override Str toStr() {
-        return "currentTerm:$currentTerm, lastLog:$logs.lastIndex, commitIndex:$commitIndex, members:$configuration.members, leaderId:$leaderId"
+        return "role:role, currentTerm:$currentTerm, lastLog:$logs.lastIndex, commitIndex:$commitIndex, leaderId:$leaderId"
+    }
+    
+    Str dump() {
+        str := toStr + ", ${configuration.members}"
+        echo("RNode: $str")
+        logs.dump
+        stateMachine.dump
+        return str
     }
     
     private Void saveMeta(File file := metaFile) {
@@ -180,22 +192,19 @@ class RNode
     
     
     private Void checkApplayLog() {
-        if (commitIndex > lastApplied) {
-            //TODO
+        while (commitIndex > lastApplied) {
             ++lastApplied
             logEntry := logs.get(lastApplied)
+            
+            echo("applay log: $logEntry")
 
             if (logEntry.type == 0) {
-                stateMachine.apply(logEntry)
+                stateMachine.apply(logEntry.command)
             }
             else if (logEntry.type == 1 || logEntry.type == 2) {
                 configuration.apply(logEntry)
             }
-            else {
-                //becomeLeader
-            }
         }
-        //lret null
     }
     
     internal AppendEntriesRes onAppendEntries(AppendEntriesReq req) {
@@ -257,7 +266,8 @@ class RNode
         leaderId = id
         echo("becomeLeader:$this")
         
-        execute("becomeLeader", 3)
+        sendHeartbeat
+        //execute("becomeLeader", 3)
 
         lastIndex := logs.lastIndex
         configuration.eachPeer(id) |peer|{
@@ -304,7 +314,7 @@ class RNode
         
         if (votedFor == null || votedFor == req.candidateId) {
             logEntry := logs.lastIndex
-            if (req.lastLogIndex > logEntry) {
+            if (req.lastLogIndex >= logEntry) {
                 votedFor = req.candidateId
                 saveMeta
                 return RequestVoteRes(currentTerm, true)
@@ -359,7 +369,7 @@ class RNode
     
     private Void takeSnapshot() {
         //stateMachinelock.sync {
-        stateMachine.saveSnapshot
+        if (!stateMachine.saveSnapshot) return
         snapshotPoint = lastApplied
         saveMeta
         //    lret null

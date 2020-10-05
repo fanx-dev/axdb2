@@ -92,7 +92,7 @@ class TruncFile {
   InStream? in(Int pos) {
     for (i:=parts.size-1; i>=0; --i) {
       p := parts[i]
-      if (pos > p.offset) {
+      if (pos >= p.offset) {
         buf := parts.last.buf
         buf.seek(pos-p.offset)
         return buf.in
@@ -105,7 +105,7 @@ class TruncFile {
   Int read(Int pos, |InStream| f) {
     for (i:=parts.size-1; i>=0; --i) {
       p := parts[i]
-      if (pos > p.offset) {
+      if (pos >= p.offset) {
         buf := parts.last.buf
         buf.seek(pos-p.offset)
         oldPos := buf.pos

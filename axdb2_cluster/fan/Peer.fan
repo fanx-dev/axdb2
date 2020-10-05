@@ -28,6 +28,10 @@ class Peer
         this.id = id
         client = HttpClient(id.host, id.port)
     }
+    
+    override Str toStr() {
+        "$id, nextIndex:$nextIndex, matchIndex:$matchIndex"
+    }
 
     private Void onErr(Err err) {
         client.close

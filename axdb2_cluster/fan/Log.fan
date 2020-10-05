@@ -38,11 +38,12 @@ const class LogEntry {
 class Logs {
     private LogEntry[] list := [,]
     private TruncFile logFile
-    private [Int:Int] indexToPos := [:]
+    private [Int:Int] indexToPos
     private Int flushIndex
     private Buf tmpBuf := Buf.make(4096)
 
     new make(File dir, Str name) {
+      indexToPos = OrderedMap<Int,Int>()
       logFile = TruncFile(dir, name)
 
       //rebuild index
@@ -50,7 +51,9 @@ class Logs {
       while (true) {
         try {
           n := logFile.read(pos) |in| {
-            e := LogEntry.fromStr(in.readLine)
+            line := in.readLine
+            if (line == null) lret
+            e := LogEntry.fromStr(line)
             indexToPos[e.index] = pos
             flushIndex = e.index
           }
@@ -68,6 +71,7 @@ class Logs {
     LogEntry? get(Int index) {
       if (index <= flushIndex) {
         pos := indexToPos[index]
+        //echo("get: $index, $pos")
         if (pos == null) return null
         return read(pos)
       }
@@ -84,7 +88,11 @@ class Logs {
     }
 
     private LogEntry read(Int pos) {
-      return LogEntry.fromStr(logFile.in(pos).readLine)
+      in := logFile.in(pos)
+      if (in == null) {
+        throw Err("$logFile, $pos")
+      }
+      return LogEntry.fromStr(in.readLine)
     }
     
     ** 如果已经存在的日志条目和新的产生冲突（索引值相同但是任期号不同），删除这一条和之后所有的 （5.3 节）
@@ -163,5 +171,17 @@ class Logs {
     Void close() {
       sync
       logFile.close
+    }
+    
+    Void dump() {
+        echo("Logs:")
+        
+        indexToPos.each |v,k| {
+            log := get(k)
+            echo("    $k: $log")
+        }
+        list.each |log| {
+            echo("    $log")
+        }
     }
 }
