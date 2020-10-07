@@ -40,7 +40,7 @@ class Peer
 
     async AppendEntriesRes? sendAppendEntries(AppendEntriesReq req) {
         try {
-            return await _sendAppendEntries(req)
+            return await _sendReq("appendEntries", req)
         }
         catch (Err e) {
             onErr(e)
@@ -48,44 +48,35 @@ class Peer
         }
     }
     
-    private async AppendEntriesRes? _sendAppendEntries(AppendEntriesReq req) {
-        uri := `/appendEntries`
-        param := Buf()
-        param.out.writeObj(req)
-        param.flip
-        base64 := param.toBase64
-        uri = uri.plusQuery(["req":base64])
-
-        echo("req $uri")
+    private async Obj? _sendReq(Str method, Obj? args) {
+        uri := `/$method`
+        if (args != null) {
+            param := Buf()
+            param.out.writeObj(args)
+            param.flip
+            uri = uri.plusQuery(["req":param.readAllStr])
+        }
+        //echo("req: $id$uri")
         await client.get(uri)
 
-        buf := await client.read
-        return buf.in.readObj as AppendEntriesRes
-        //return AppendEntriesRes(0, false)
+        Str? str
+        while (true) {
+            buf := await client.read
+            if (buf == null) break
+            str = buf.readAllStr
+            //echo("res: $str")
+        }
+        return str.in.readObj
     }
 
     async RequestVoteRes? sendRequestVote(RequestVoteReq req) {
         try {
-            return await _sendRequestVote(req)
+            return await _sendReq("requestVote", req)
         }
         catch (Err e) {
             onErr(e)
             return null
         }
-    }
-
-    private async RequestVoteRes? _sendRequestVote(RequestVoteReq req) {
-        uri := `/requestVote`
-        param := Buf()
-        param.out.writeObj(req)
-        base64 := param.toBase64
-        uri = uri.plusQuery(["req":base64.toStr])
-
-        echo("req $uri")
-        await client.get(uri)
-
-        buf := await client.read
-        return buf.in.readObj as RequestVoteRes
     }
 
     override Bool equals(Obj? other) {

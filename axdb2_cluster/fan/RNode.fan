@@ -72,7 +72,7 @@ class RNode
     }
 
     override Str toStr() {
-        return "role:role, currentTerm:$currentTerm, lastLog:$logs.lastIndex, commitIndex:$commitIndex, leaderId:$leaderId"
+        return "role:$role, currentTerm:$currentTerm, lastLog:$logs.lastIndex, commitIndex:$commitIndex, leaderId:$leaderId"
     }
     
     Str dump() {
@@ -112,12 +112,13 @@ class RNode
     }
 
     ** 执行客户端命令
-    async Bool execute(Str command, Int type) {
+    async Bool onExecute(Str command, Int type) {
         if (role != Role.leader) {
             return false
         }
+        echo("execute: $command, type:$type")
         
-        logEntry := LogEntry(currentTerm, logs.lastIndex+1, command)
+        logEntry := LogEntry(currentTerm, logs.lastIndex+1, command, type)
         logs.add(logEntry)
         //echo(logs.lastIndex)
         
@@ -132,10 +133,13 @@ class RNode
         while (true) {
             advanceCommitIndex
             if (commitIndex >= logEntry.index) {
-                
-                return true
+                break
             }
             await Async.sleep(5ms)
+        }
+        
+        if (logEntry.type == 1 || logEntry.type == 2) {
+            configuration.apply(logEntry)
         }
         return false
     }
@@ -143,6 +147,7 @@ class RNode
     private async Bool replicateTo(Peer peer) {
         nextIndex := peer.nextIndex
         AppendEntriesReq? ae
+        echo("replicateTo: $logs.lastIndex, $nextIndex")
         if (logs.lastIndex >= nextIndex) {
             logEntry := logs.get(nextIndex)
             prevLogEntry := logs.get(nextIndex-1)
@@ -201,9 +206,6 @@ class RNode
             if (logEntry.type == 0) {
                 stateMachine.apply(logEntry.command)
             }
-            else if (logEntry.type == 1 || logEntry.type == 2) {
-                configuration.apply(logEntry)
-            }
         }
     }
     
@@ -220,31 +222,49 @@ class RNode
             return AppendEntriesRes(currentTerm, false)
         }
         
-        logEntry := logs.get(req.prevLogIndex)
-        if (logEntry.term != req.prevLogTerm) {
-            return AppendEntriesRes(currentTerm, false)
+        if (req.prevLogIndex == -1) {
+            if (logs.last == null) {
+                req.entries.each |e|{ logs.add(e) }
+            }
+            else {
+                return AppendEntriesRes(currentTerm, false)
+            }
+        }
+        else {
+            logEntry := logs.get(req.prevLogIndex)
+            if (logEntry.term != req.prevLogTerm) {
+                return AppendEntriesRes(currentTerm, false)
+            }
+            logs.addAndRemove(req.entries)
         }
         
-        logs.addAndRemove(req.entries)
-        
         if (req.leaderCommit > commitIndex) {
-            lastEntry := req.entries.last
-            commitIndex = req.leaderCommit.min(lastEntry.index)
+            lastEntry := logs.last
+            if (lastEntry != null) {
+                commitIndex = req.leaderCommit.min(lastEntry.index)
+            }
         }
         
         checkApplayLog
         this.leaderId = req.leaderId
+        
+        req.entries.each |log| {
+            if (log.type == 1 || log.type == 2) {
+                configuration.apply(log)
+            }
+        }
+        
         return AppendEntriesRes(currentTerm, true)
     }
     
     private Void sendHeartbeat() {
         lastSendHeartbeatTime = TimePoint.nowMillis
-        
+        logEntry := logs.last
         ae := AppendEntriesReq {
                 it.term = currentTerm
                 it.leaderId = id
-                it.prevLogIndex = -1
-                it.prevLogTerm = -1
+                it.prevLogIndex = logEntry == null ? -1 : logEntry.index
+                it.prevLogTerm = logEntry == null ? -1 : logEntry.term
                 it.entries = [,]
                 it.leaderCommit = commitIndex
             }
@@ -304,6 +324,14 @@ class RNode
     
     
     internal RequestVoteRes onRequestVote(RequestVoteReq req) {
+        now := TimePoint.nowMillis
+        if (role == Role.follower) {
+            //没有超时，当前领导人存在
+            if (now - receiveHeartbeatTime < 200) {
+                return RequestVoteRes(currentTerm, false)
+            }
+        }
+        
         if (req.term > currentTerm) {
             stepDown(req.term)
         }

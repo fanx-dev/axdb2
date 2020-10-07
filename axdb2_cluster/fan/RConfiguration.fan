@@ -19,7 +19,7 @@ class RConfiguration
     file = dir + `${name}.conf`
     if (file.exists) {
       in := file.in
-      val := in.readUtf
+      val := in.readAllStr
       in.close
       members = val.split(',').map { Peer(it.toUri) }
     }
@@ -38,12 +38,13 @@ class RConfiguration
   private Void save() {
     val := members.join(",")
     file2 := file.parent + `${file.name}.conf.tmp`
-    file2.out.writeUtf(val).sync.close
+    file2.out.writeChars(val).sync.close
     file.delete
     file2.rename(file.name)
   }
 
   internal Void apply(LogEntry e) {
+    echo("apply conf: $e")
     p := Peer(e.command.toUri)
     if (e.type == 1) {
       members.add(p)

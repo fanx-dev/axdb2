@@ -5,6 +5,7 @@
 //   2020-8-23 yangjiandong Creation
 //
 
+@Serializable
 class AppendEntriesReq
 {
     ** 领导人的任期号
@@ -28,10 +29,12 @@ class AppendEntriesRes {
     ** 跟随者包含了匹配上 prevLogIndex 和 prevLogTerm 的日志时为真
     Bool success
     
-    new make(Int term, Bool success) {
+    new makeFrom(Int term, Bool success) {
         this.term = term
         this.success = success
     }
+    
+    new make() {}
 }
 
 @Serializable
@@ -53,9 +56,11 @@ class RequestVoteRes {
     ** 候选人赢得了此张选票时为真
     Bool voteGranted
     
-    new make(Int term, Bool voteGranted) {
+    new makeFrom(Int term, Bool voteGranted) {
         this.term = term
         this.voteGranted = voteGranted
     }
+    
+    new make() {}
 }
 

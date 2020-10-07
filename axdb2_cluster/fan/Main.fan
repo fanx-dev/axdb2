@@ -16,7 +16,7 @@ class Main
     p := args[0].toStr
     Server {
       port = p.toInt
-      handler = RpcServer(`testData/`.toFile, "testDb", `http://localhost:$p`)
+      handler = RpcServer(`testData/`.toFile, "testDb_$p", `http://localhost:$p`)
     }.start
   }
 }
