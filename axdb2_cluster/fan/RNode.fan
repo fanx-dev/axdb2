@@ -69,6 +69,8 @@ class RNode
         configuration = RConfiguration(id, dir, name)
         metaFile = dir + `${name}-meta`
         if (metaFile.exists) loadMeta(metaFile)
+        else saveMeta
+        
         this.id = id
         logs = Logs(dir, name)
     }
@@ -114,7 +116,7 @@ class RNode
     }
 
     ** 执行客户端命令
-    async Bool onExecute(Str command, Int type) {
+    async Bool onExecute(Str command, Int type, Bool sync) {
         if (role != Role.leader) {
             return false
         }
@@ -129,15 +131,17 @@ class RNode
             replicateTo(peer, false)
         }
 
-        await Async.sleep(5ms)
-        logs.sync
-        
-        while (true) {
-            advanceCommitIndex
-            if (commitIndex >= logEntry.index) {
-                break
-            }
+        if (sync) {
             await Async.sleep(5ms)
+            logs.sync
+
+            while (true) {
+                advanceCommitIndex
+                if (commitIndex >= logEntry.index) {
+                    break
+                }
+                await Async.sleep(5ms)
+            }
         }
         
         if (logEntry.type == 1 || logEntry.type == 2) {

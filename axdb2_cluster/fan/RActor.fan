@@ -26,8 +26,9 @@ const class RActor : Actor {
         if (method == "execute") {
             cmd := uri.query["cmd"]
             typeStr := uri.query["type"]
+            sync := uri.query["sync"] == "true"
             type := typeStr == null ? 0 : typeStr.toInt
-            args = [cmd, type]
+            args = [cmd, type, sync]
         }
         else {
             reqStr := uri.query["req"]

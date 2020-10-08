@@ -26,6 +26,7 @@ class RConfiguration
     }
     else {
       members = [Peer(self)]
+      save
     }
     
     peerMap = [:]
