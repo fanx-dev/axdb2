@@ -13,6 +13,7 @@ using axdb2_store
 class RConfiguration
 {
   Peer[] members
+  private [Uri:Peer] peerMap
   private File file
   
   new make(Uri self, File dir, Str name) {
@@ -26,6 +27,11 @@ class RConfiguration
     else {
       members = [Peer(self)]
     }
+    
+    peerMap = [:]
+    members.each |p| {
+        peerMap[p.id] = p
+    }
   }
   
   Void eachPeer(Uri self, |Peer| f) {
@@ -36,20 +42,33 @@ class RConfiguration
   }
   
   private Void save() {
-    val := members.join(",")
+    val := members.map{ it.id }.join(",")
     file2 := file.parent + `${file.name}.conf.tmp`
     file2.out.writeChars(val).sync.close
     file.delete
     file2.rename(file.name)
   }
+  
+  Bool inGroup(Uri id) {
+    peerMap.containsKey(id)
+  }
+  
+  Peer? addPeer(Uri id) {
+    if (peerMap.containsKey(id)) return null
+    p := Peer(id)
+    members.add(p)
+    peerMap[id] = p
+    return p
+  }
 
-  internal Void apply(LogEntry e) {
+  internal Void apply(LogEntry e, Int lastLogIndex) {
     echo("apply conf: $e")
-    p := Peer(e.command.toUri)
     if (e.type == 1) {
-      members.add(p)
+      p := addPeer(e.command.toUri)
+      if (p != null) p.nextIndex = lastLogIndex
     }
     else if (e.type == 2) {
+      p := peerMap[e.command.toUri]
       members.remove(p)
     }
     save

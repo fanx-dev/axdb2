@@ -8,7 +8,7 @@ const class RActor : Actor {
 
   const Unsafe<RNode> node
   
-  static const Duration checkTime = 100ms
+  static const Duration checkTime = 50ms
 
   new make(File dir, Str name, Uri id) : super.make() {
     node = Unsafe(RNode(dir, name, id))

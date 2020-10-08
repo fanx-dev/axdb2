@@ -16,7 +16,7 @@ class Peer
     
     ** leader only
     ** 对于每一个服务器，需要发送给他的下一个日志条目的索引值（初始化为领导人最后索引值加一）
-    Int nextIndex := -1
+    Int nextIndex := 0
     
     ** leader only
     ** 对于每一个服务器，已经复制给他的日志的最高索引值
@@ -33,7 +33,7 @@ class Peer
         "$id, nextIndex:$nextIndex, matchIndex:$matchIndex"
     }
 
-    private Void onErr(Err err) {
+    private Void onErr() {
         client.close
         client = HttpClient(id.host, id.port)
     }
@@ -42,8 +42,8 @@ class Peer
         try {
             return await _sendReq("appendEntries", req)
         }
-        catch (Err e) {
-            onErr(e)
+        catch {
+            onErr()
             return null
         }
     }
@@ -73,8 +73,8 @@ class Peer
         try {
             return await _sendReq("requestVote", req)
         }
-        catch (Err e) {
-            onErr(e)
+        catch {
+            onErr()
             return null
         }
     }

@@ -35,6 +35,8 @@ class AppendEntriesRes {
     }
     
     new make() {}
+    
+    override Str toStr() { "$success,$term" }
 }
 
 @Serializable
@@ -62,5 +64,7 @@ class RequestVoteRes {
     }
     
     new make() {}
+    
+    override Str toStr() { "voteGranted,$term" }
 }
 

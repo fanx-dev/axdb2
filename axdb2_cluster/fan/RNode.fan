@@ -49,6 +49,8 @@ class RNode
     private Int receiveHeartbeatTime
     private Int lastSendHeartbeatTime
     private Int electionStartTime
+    
+    private Int timeout := 200
 
     ** local server id
     private Uri id
@@ -75,7 +77,7 @@ class RNode
         return "role:$role, currentTerm:$currentTerm, lastLog:$logs.lastIndex, commitIndex:$commitIndex, leaderId:$leaderId"
     }
     
-    Str dump() {
+    Str onDump() {
         str := toStr + ", ${configuration.members}"
         echo("RNode: $str")
         logs.dump
@@ -124,7 +126,7 @@ class RNode
         
         lastSendHeartbeatTime = TimePoint.nowMillis
         configuration.eachPeer(id) |peer|{
-            replicateTo(peer)
+            replicateTo(peer, false)
         }
 
         await Async.sleep(5ms)
@@ -139,42 +141,57 @@ class RNode
         }
         
         if (logEntry.type == 1 || logEntry.type == 2) {
-            configuration.apply(logEntry)
+            configuration.apply(logEntry, logs.lastIndex)
         }
-        return false
+        return true
     }
     
-    private async Bool replicateTo(Peer peer) {
+    private async Bool replicateTo(Peer peer, Bool heartbeat) {
         nextIndex := peer.nextIndex
-        AppendEntriesReq? ae
-        echo("replicateTo: $logs.lastIndex, $nextIndex")
-        if (logs.lastIndex >= nextIndex) {
-            logEntry := logs.get(nextIndex)
-            prevLogEntry := logs.get(nextIndex-1)
-            ae = AppendEntriesReq {
-                it.term = currentTerm
-                it.leaderId = id
-                it.prevLogIndex = prevLogEntry.index
-                it.prevLogTerm = prevLogEntry.term
-                it.entries = [logEntry]
-                it.leaderCommit = commitIndex
-            }
+        LogEntry[]? logList
+        
+        if (!heartbeat) echo("replicateTo1: lastIndex:$logs.lastIndex, nextIndex:$nextIndex, $peer")
+        
+        logLastIndex := logs.lastIndex
+        if (logLastIndex >= nextIndex) {
+            logList = logs.getFrom(nextIndex)
+            echo("replicateTo2: lastIndex:$logs.lastIndex, nextIndex:$nextIndex, $peer, $logList")
         }
         else {
-            return false
+            if (heartbeat) {
+                logList = [,]
+            }
+            else {
+                return false
+            }
+        }
+        
+        prevLogEntry := logs.get(nextIndex-1)
+        ae := AppendEntriesReq {
+            it.term = currentTerm
+            it.leaderId = id
+            it.prevLogIndex = prevLogEntry == null ? -1 : prevLogEntry.index
+            it.prevLogTerm = prevLogEntry == null ? -1 : prevLogEntry.term
+            it.entries = logList
+            it.leaderCommit = commitIndex
         }
         
         res := await peer.sendAppendEntries(ae)
         if (res.success) {
-            peer.nextIndex = nextIndex + 1
-            peer.matchIndex = nextIndex
-            return true
+            if (nextIndex <= logLastIndex) {
+                peer.nextIndex = nextIndex + 1
+                peer.matchIndex = nextIndex
+            }
+            else {
+                peer.matchIndex = logLastIndex
+            }
         }
         else {
-            peer.nextIndex = nextIndex - 1
-            //retry
-            //replicate(peer)
+            if (nextIndex - 1 > 0) {
+                peer.nextIndex = nextIndex - 1
+            }
         }
+        if (logList.size > 0) echo("end send $peer, $res")
         return false
     }
     
@@ -182,28 +199,30 @@ class RNode
         //echo("advanceCommitIndex: commitIndex:$commitIndex, logs:$logs.lastIndex")
         for (i:=commitIndex+1; i<=logs.lastIndex; ++i) {
             logEntry := logs.get(i)
-            if (logEntry.term == currentTerm) {
+            //if (logEntry.term == currentTerm) {
                 count := 1
                 configuration.eachPeer(id) |peer|{
-                    if (peer.matchIndex > logEntry.index) ++count
+                    if (peer.matchIndex >= logEntry.index) ++count
+                    //echo("advanceCommitIndex: $peer")
                 }
+                //echo("advanceCommitIndex: $count")
                 if (count > configuration.members.size/2) {
                     echo("commitIndex to: $i")
                     commitIndex = i
                 }
-            }
+            //}
         }
     }
     
     
     private Void checkApplayLog() {
+        if (role == Role.leader) advanceCommitIndex
         while (commitIndex > lastApplied) {
             ++lastApplied
             logEntry := logs.get(lastApplied)
             
-            echo("applay log: $logEntry")
-
             if (logEntry.type == 0) {
+                echo("applay log: $logEntry")
                 stateMachine.apply(logEntry.command)
             }
         }
@@ -211,31 +230,27 @@ class RNode
     
     internal AppendEntriesRes onAppendEntries(AppendEntriesReq req) {
         receiveHeartbeatTime = TimePoint.nowMillis
-        if (req.term > currentTerm) {
+        if (req.term >= currentTerm) {
             stepDown(req.term)
         }
-        if (role == Role.candidate) {
-            role = Role.follower
-        }
-        
-        if (req.term < currentTerm) {
+        else {
+            //echo("term error: $req.term, $currentTerm")
             return AppendEntriesRes(currentTerm, false)
         }
         
-        if (req.prevLogIndex == -1) {
-            if (logs.last == null) {
-                req.entries.each |e|{ logs.add(e) }
-            }
-            else {
-                return AppendEntriesRes(currentTerm, false)
-            }
-        }
-        else {
+        if (req.prevLogIndex != -1) {
             logEntry := logs.get(req.prevLogIndex)
-            if (logEntry.term != req.prevLogTerm) {
+            if (logEntry == null || logEntry.term != req.prevLogTerm) {
+                echo("prevLogIndex error2: $req.prevLogIndex, logEntry")
                 return AppendEntriesRes(currentTerm, false)
             }
+            //echo("=======Logs addAndRemove begin")
+            //logs.dump
+        }
+        
+        if (req.entries.size > 0) {
             logs.addAndRemove(req.entries)
+            logs.sync
         }
         
         if (req.leaderCommit > commitIndex) {
@@ -250,7 +265,10 @@ class RNode
         
         req.entries.each |log| {
             if (log.type == 1 || log.type == 2) {
-                configuration.apply(log)
+                if (!configuration.inGroup(leaderId)) {
+                    configuration.addPeer(leaderId)
+                }
+                configuration.apply(log, logs.lastIndex)
             }
         }
         
@@ -259,18 +277,8 @@ class RNode
     
     private Void sendHeartbeat() {
         lastSendHeartbeatTime = TimePoint.nowMillis
-        logEntry := logs.last
-        ae := AppendEntriesReq {
-                it.term = currentTerm
-                it.leaderId = id
-                it.prevLogIndex = logEntry == null ? -1 : logEntry.index
-                it.prevLogTerm = logEntry == null ? -1 : logEntry.term
-                it.entries = [,]
-                it.leaderCommit = commitIndex
-            }
-        
         configuration.eachPeer(id) |peer|{
-            peer.sendAppendEntries(ae)
+            replicateTo(peer, true)
         }
     }
     
@@ -302,18 +310,19 @@ class RNode
         now := TimePoint.nowMillis
         // 心跳超时
         if (role == Role.follower) {
-            if (now - receiveHeartbeatTime > 200 || votedFor != null) {
+            if (now - receiveHeartbeatTime > timeout || votedFor != null) {
                 role = Role.candidate
+                startElection
             }
         }
         // 如果选举过程超时，再次发起一轮选举
         else if (role == Role.candidate) {
-            if (now - electionStartTime > 200) {
+            if (now - electionStartTime > Int.random(timeout..2000)) {
                 startElection
             }
         }
         else if (role == Role.leader) {
-            if (now - lastSendHeartbeatTime > 50) {
+            if (now - lastSendHeartbeatTime > timeout/2) {
                 sendHeartbeat
             }
         }
@@ -327,7 +336,8 @@ class RNode
         now := TimePoint.nowMillis
         if (role == Role.follower) {
             //没有超时，当前领导人存在
-            if (now - receiveHeartbeatTime < 200) {
+            if (now - receiveHeartbeatTime < timeout) {
+                echo("onRequestVote: leader no timeout")
                 return RequestVoteRes(currentTerm, false)
             }
         }
@@ -337,6 +347,7 @@ class RNode
         }
         
         if (req.term < currentTerm) {
+            echo("onRequestVote: currentTerm error: req.term:$req.term, currentTerm:$currentTerm")
             return RequestVoteRes(currentTerm, false)
         }
         
@@ -349,6 +360,7 @@ class RNode
             }
         }
         
+        echo("onRequestVote: already votedFor: $votedFor")
         return RequestVoteRes(currentTerm, false)
     }
     
@@ -393,6 +405,7 @@ class RNode
         if (voteGranted) {
             becomeLeader
         }
+        saveMeta
     }
     
     private Void takeSnapshot() {

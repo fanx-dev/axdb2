@@ -31,6 +31,9 @@ const class LogEntry {
 
   static new fromStr(Str str) {
     vs := str.splitBy(",", 4)
+    if (vs.size != 4) {
+        throw Err("LogEntry format error: $str")
+    }
     return LogEntry(vs[1].toInt, vs[2].toInt, vs[3], vs[0].toInt)
   }
 }
@@ -83,16 +86,31 @@ class Logs {
       return null
     }
     
+    LogEntry[] getFrom(Int index) {
+        res := LogEntry[,]
+        while (index <= flushIndex) {
+            pos := indexToPos[index]
+            if (pos == null) break
+            log := read(pos)
+            res.add(log)
+            ++index
+        }
+        res.addAll(list)
+        return res
+    }
+    
     Void add(LogEntry entry) {
         list.add(entry)
     }
 
-    private LogEntry read(Int pos) {
+    private LogEntry? read(Int pos) {
       in := logFile.in(pos)
       if (in == null) {
-        throw Err("$logFile, $pos")
+        return null
       }
-      return LogEntry.fromStr(in.readLine)
+      line := in.readLine
+      if (line == null) return null
+      return LogEntry.fromStr(line)
     }
     
     ** 如果已经存在的日志条目和新的产生冲突（索引值相同但是任期号不同），删除这一条和之后所有的 （5.3 节）
@@ -103,12 +121,17 @@ class Logs {
       first := entries.first
       old := get(first.index)
       if (old == null) {
+        //echo("addAndRemove1: $entries")
         list.addAll(entries)
         return
       }
       
       if (old.equals(first)) {
-        mpos := old.index - list.first.index
+        mpos := -1
+        if (list.size > 0) {
+            mpos = old.index - list.first.index
+        }
+        
         if (mpos >= 0) {
           list.removeRange(mpos..-1)
         }
@@ -117,8 +140,13 @@ class Logs {
           pos := indexToPos[old.index]
           if (pos == null) pos = 0
           logFile.truncAfter(pos)
+          indexToPos = indexToPos.exclude { it >= pos }
           flushIndex = old.index-1
+          
+          //echo("addAndRemove2: $entries, $mpos, truncAfter:$pos")
         }
+        
+        //echo("addAndRemove3: $entries, $mpos, ")
         list.addAll(entries)
       }
     }
@@ -127,6 +155,8 @@ class Logs {
       if (list.size > 0) return list.last
       pos := indexToPos[flushIndex]
       if (pos == null) return null
+      
+      //echo("Log.last: $indexToPos")
       return read(pos)
     }
     
@@ -136,6 +166,9 @@ class Logs {
       }
       pos := indexToPos[flushIndex]
       if (pos == null) return 0
+      
+      //echo("Log.lastIndex: $indexToPos")
+      //dump()
       return read(pos).index
     }
 
@@ -151,12 +184,13 @@ class Logs {
     Void sync() {
       if (list.size == 0) return
       
-      pos := logFile.size
+      basePos := logFile.size
+      pos := basePos
       tmpBuf.clear
       list.each |e| {
-        indexToPos[e.index] = pos
+        indexToPos[e.index] = basePos + tmpBuf.pos
+        //echo("===sync $e.index, $pos")
         tmpBuf.printLine(e.toStr)
-        pos += tmpBuf.pos
       }
       
       flushIndex = list.last.index
