@@ -38,7 +38,9 @@ class Storage
   new make(File path, Str name) {
     this.path = path
     this.name = name
-    this.cache = LruCache(1000)
+    
+    cacheSize := this.typeof.pod.config("cacheSize", "10000").toInt
+    this.cache = LruCache(cacheSize)
     this.skipList = SkipList()
     //this.logFile = LogFile(path, name, skipList)
     this.lock = Lock()

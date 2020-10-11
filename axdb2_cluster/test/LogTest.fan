@@ -68,4 +68,31 @@ class LogTest : Test
     verifyEq(e, ex)
     logs.dump
   }
+  
+  
+  Void testTruncBefore()
+  {
+    logs := Logs(File.fromPath("data/"), "testTrunc")
+    logs.setPartFileSize(3)
+    
+    e := LogEntry(1, 1, "123")
+    e1 := LogEntry(1, 2, "234")
+    e2 := LogEntry(1, 3, "456")
+    
+    logs.add(e)
+    logs.sync
+    logs.add(e1)
+    logs.sync
+    logs.add(e2)
+    logs.dump
+    
+    logs.truncBefore(2)
+    logs.dump
+    
+    ex := logs.get(2)
+    verifyEq(e1, ex)
+    
+    ex2 := logs.get(1)
+    verifyEq(ex2, null)
+  }
 }

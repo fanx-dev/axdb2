@@ -29,7 +29,7 @@ internal class TruncFilePart {
 class TruncFile {
   File dir
   Str name
-  Int maxSize := 10_1000_1000
+  Int maxSize := 100_1000_1000
 
   private TruncFilePart[] parts
 
@@ -93,7 +93,7 @@ class TruncFile {
     for (i:=parts.size-1; i>=0; --i) {
       p := parts[i]
       if (pos >= p.offset) {
-        buf := parts.last.buf
+        buf := p.buf
         buf.seek(pos-p.offset)
         return buf.in
       }
@@ -106,7 +106,7 @@ class TruncFile {
     for (i:=parts.size-1; i>=0; --i) {
       p := parts[i]
       if (pos >= p.offset) {
-        buf := parts.last.buf
+        buf := p.buf
         buf.seek(pos-p.offset)
         oldPos := buf.pos
         f.call(buf.in)

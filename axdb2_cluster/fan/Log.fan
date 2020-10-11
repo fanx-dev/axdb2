@@ -42,8 +42,13 @@ class Logs {
     private LogEntry[] list := [,]
     private TruncFile logFile
     private [Int:Int] indexToPos
+    Int minIndex { private set }
     private Int flushIndex
     private Buf tmpBuf := Buf.make(4096)
+    
+    Void setPartFileSize(Int size) {
+        logFile.maxSize = size
+    }
 
     new make(File dir, Str name) {
       indexToPos = OrderedMap<Int,Int>()
@@ -59,6 +64,7 @@ class Logs {
             e := LogEntry.fromStr(line)
             indexToPos[e.index] = pos
             flushIndex = e.index
+            if (e.index < minIndex) minIndex = e.index
           }
           if (n == 0) break
           pos += n
@@ -140,7 +146,7 @@ class Logs {
           pos := indexToPos[old.index]
           if (pos == null) pos = 0
           logFile.truncAfter(pos)
-          indexToPos = indexToPos.exclude { it >= pos }
+          indexToPos = indexToPos.exclude |v| { v >= pos }
           flushIndex = old.index-1
           
           //echo("addAndRemove2: $entries, $mpos, truncAfter:$pos")
@@ -172,15 +178,19 @@ class Logs {
       return read(pos).index
     }
 
+    ** remove log between 0..<index
     Bool truncBefore(Int index) {
       pos := indexToPos[index]
       if (pos == null) return false
       
       logFile.truncBefore(pos)
-      if (pos > flushIndex) {
+      minIndex = index
+      indexToPos = indexToPos.exclude |v| { v < pos }
+      if (index > flushIndex) {
         if (list.size == 0) return true
-        i := pos - flushIndex
-        list.removeRange(0..i)
+        i := index - flushIndex
+        list.removeRange(0..<i)
+        flushIndex = index
       }
       return true
     }

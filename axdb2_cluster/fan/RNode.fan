@@ -159,10 +159,14 @@ class RNode
         nextIndex := peer.nextIndex
         LogEntry[]? logList
         
-        if (!heartbeat) echo("replicateTo1: lastIndex:$logs.lastIndex, nextIndex:$nextIndex, $peer")
-        
+        //if (!heartbeat) echo("replicateTo1: lastIndex:$logs.lastIndex, nextIndex:$nextIndex, $peer")
+      
         logLastIndex := logs.lastIndex
-        if (logLastIndex >= nextIndex) {
+        if (nextIndex < logs.minIndex) {
+            echo("InstallSnapshot")
+            logList = [,]
+        }
+        else if (logLastIndex >= nextIndex) {
             logList = logs.getFrom(nextIndex)
             echo("replicateTo2: lastIndex:$logs.lastIndex, nextIndex:$nextIndex, $peer, $logList")
         }
@@ -422,8 +426,9 @@ class RNode
     
     private Void takeSnapshot() {
         snapshotPoint := stateMachine.snapshotPoint
-        if (lastApplied - snapshotPoint > 10000) {
-            logs.truncBefore(snapshotPoint-10000)
+        snapshotLimit := this.typeof.pod.config("snapshotLimit", "10000").toInt
+        if (lastApplied - snapshotPoint > snapshotLimit) {
+            logs.truncBefore(snapshotPoint-snapshotLimit)
             stateMachine.saveSnapshot
         }
     }
