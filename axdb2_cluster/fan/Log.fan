@@ -172,13 +172,17 @@ class Logs {
       return read(pos).index
     }
 
-    Void truncBefore(Int pos) {
+    Bool truncBefore(Int index) {
+      pos := indexToPos[index]
+      if (pos == null) return false
+      
       logFile.truncBefore(pos)
       if (pos > flushIndex) {
-        if (list.size == 0) return
+        if (list.size == 0) return true
         i := pos - flushIndex
         list.removeRange(0..i)
       }
+      return true
     }
 
     Void sync() {

@@ -34,7 +34,7 @@ class StorageTest : Test
     verifySearch(storage, "key999", "value999")
     verifySearch(storage, "key999999999", null)
     
-    storage.mergeNow()
+    storage.merge()
     Actor.sleep(1sec)
     echo("end sleep")
     verifySearch(storage, "key500", "value500")

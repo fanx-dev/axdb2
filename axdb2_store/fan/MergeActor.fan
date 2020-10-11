@@ -53,14 +53,14 @@ const class MergeActor : BaseActor {
     private Void merge() {
         //echo("try merge")
         if (storage.val.skipList.size == 0) {
-            mergeLater(20sec)
+            //mergeLater(20sec)
             return
         }
-        storage.val.beginMerge
+        logId := storage.val.beginMerge
         changes := storage.val.immSkipList.list
         storage.val.immSkipList = null
-        btree.val.insertAll(changes)
-        storage.val.endMerge(btree.val.store)
-        mergeLater
+        btree.val.insertAll(changes, logId)
+        storage.val.endMerge(logId)
+        //mergeLater
     }
 }

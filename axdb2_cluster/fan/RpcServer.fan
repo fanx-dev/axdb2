@@ -28,12 +28,22 @@ const class RpcServer : HttpHandler {
         await res.writeFixed(buf1)
         return
     }
-    else {
-        echo("onHttpService:$uri")
+    else if (path == "find") {
+        RNode node := actor.node.val
+        key := uri.query["key"]
+        val := node.stateMachine.get(key)
         buf2 := NioBuf.makeMem(1024)
-        buf2.printLine("HelloWorld:$uri")
+        buf2.print(val)
         buf2.flip
         await res.writeFixed(buf2)
+        return
+    }
+    else {
+        echo("onHttpService:$uri")
+        buf3 := NioBuf.makeMem(1024)
+        buf3.printLine("HelloWorld:$uri")
+        buf3.flip
+        await res.writeFixed(buf3)
         return
     }
   }

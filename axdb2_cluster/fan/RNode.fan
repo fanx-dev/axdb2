@@ -21,9 +21,6 @@ class RNode
 
     ** 在当前获得选票的候选人的 Id
     private Uri? votedFor
-
-    ** 状态机保存快照的日志位置
-    private Int snapshotPoint
     
     ** 元数据保存路径
     private File metaFile
@@ -41,7 +38,7 @@ class RNode
     private Int lastApplied
     
     ** 本地状态机
-    private StateMachine stateMachine
+    StateMachine stateMachine { private set }
     //Lock stateMachinelock := Lock()
     
     //Lock lock := Lock()
@@ -65,11 +62,17 @@ class RNode
             dir.create
         }
         
-        stateMachine = MemStateMachine(dir, name)
+        stateMachine = StoreStateMachine(dir, name)
         configuration = RConfiguration(id, dir, name)
         metaFile = dir + `${name}-meta`
         if (metaFile.exists) loadMeta(metaFile)
         else saveMeta
+        
+        snapshotPoint := stateMachine.snapshotPoint
+        if (snapshotPoint > 0) {
+            commitIndex = snapshotPoint
+            lastApplied = snapshotPoint
+        }
         
         this.id = id
         logs = Logs(dir, name)
@@ -94,7 +97,7 @@ class RNode
         out.writeI8(0)
         out.writeI8(currentTerm)
         out.writeUtf(votedFor == null ? "" : votedFor.toStr)
-        out.writeI8(snapshotPoint)
+        //out.writeI8(snapshotPoint)
         
         out.sync
         out.close
@@ -107,10 +110,10 @@ class RNode
         in.readS8
         currentTerm = in.readS8
         votedFor = in.readUtf.toUri
-        snapshotPoint = in.readS8
+        //snapshotPoint = in.readS8
 
-        commitIndex = snapshotPoint
-        lastApplied = snapshotPoint
+//        commitIndex = snapshotPoint
+//        lastApplied = snapshotPoint
 
         in.close
     }
@@ -147,6 +150,8 @@ class RNode
         if (logEntry.type == 1 || logEntry.type == 2) {
             configuration.apply(logEntry, logs.lastIndex)
         }
+        
+        takeSnapshot
         return true
     }
     
@@ -181,6 +186,8 @@ class RNode
         }
         
         res := await peer.sendAppendEntries(ae)
+        if (res == null) return false
+        
         if (res.success) {
             if (nextIndex <= logLastIndex) {
                 peer.nextIndex = nextIndex + 1
@@ -227,7 +234,7 @@ class RNode
             
             if (logEntry.type == 0) {
                 echo("applay log: $logEntry")
-                stateMachine.apply(logEntry.command)
+                stateMachine.apply(logEntry.command, logEntry.index)
             }
         }
     }
@@ -391,7 +398,8 @@ class RNode
         count := 1
         voteGranted := false
         for (i:=0; i<list.size; ++i) {
-            RequestVoteRes res := await list[i]
+            RequestVoteRes? res := await list[i]
+            if (res == null) continue
             if (res.voteGranted) {
                 ++count
                 if (count > configuration.members.size/2) {
@@ -413,11 +421,10 @@ class RNode
     }
     
     private Void takeSnapshot() {
-        //stateMachinelock.sync {
-        if (!stateMachine.saveSnapshot) return
-        snapshotPoint = lastApplied
-        saveMeta
-        //    lret null
-        //}
+        snapshotPoint := stateMachine.snapshotPoint
+        if (lastApplied - snapshotPoint > 10000) {
+            logs.truncBefore(snapshotPoint-10000)
+            stateMachine.saveSnapshot
+        }
     }
 }

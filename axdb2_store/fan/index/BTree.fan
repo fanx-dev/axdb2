@@ -132,7 +132,7 @@ class BTree {
     searchIn(node, key, result)
   }
   
-  Void insertAll(BKey[] changes) {
+  Void insertAll(BKey[] changes, Int logId := -1) {
     if (changes.size == 0) return
     //store.resetCache
     
@@ -149,6 +149,7 @@ class BTree {
     
     root = RBNode(newRoot.id, newRoot.toBuf)
     store.meta[name] = root.id.toStr
+    store.meta["logId"] = logId.toStr
     store.flush
   }
   

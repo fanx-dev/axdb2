@@ -15,7 +15,7 @@ class Storage
   internal SkipList skipList
   internal SkipList? immSkipList
   
-  private LogFile logFile
+  //private LogFile logFile
   internal LruCache cache
   
   internal File path
@@ -23,8 +23,10 @@ class Storage
   
   private Lock lock
   
-  private Int insertCount := 0
-  private Int commitPos := -1
+//  private Int insertCount := 0
+//  private Int commitPos := -1
+  private Int logId := -1
+  Int persistentId := -1 { private set }
   
   private StorageRes[] pool := [,]
   private Lock poolLock
@@ -38,7 +40,7 @@ class Storage
     this.name = name
     this.cache = LruCache(1000)
     this.skipList = SkipList()
-    this.logFile = LogFile(path, name, skipList)
+    //this.logFile = LogFile(path, name, skipList)
     this.lock = Lock()
     
     poolSize = 10
@@ -48,33 +50,35 @@ class Storage
     poolLock = Lock()
     
     merger = MergeActor(this)
-    merger.mergeLater
+//    merger.mergeLater
+    this.persistentId = pool.first.logId
   }
   
-  Void mergeNow() {
+  Void merge() {
     merger.mergeLater(0sec)
   }
   
-  internal Void beginMerge() {
-    lock.sync {
-        logFile.reset
+  internal Int beginMerge() {
+    id := lock.sync {
+        //logFile.reset
         immSkipList = skipList
         skipList = SkipList()
-        lret null
+        lret logId
     }
     echo("begin merge")
+    return id
   }
   
-  internal Void endMerge(PageMgr writeStore) {
+  internal Void endMerge(Int logId) {
     poolLock.sync {
         isStop = true
         lret null
     }
     
-    lock.sync {
-        logFile.reset
-        lret null
-    }
+//    lock.sync {
+//        logFile.reset
+//        lret null
+//    }
     
     while (true) {
         safe := poolLock.sync {
@@ -89,6 +93,7 @@ class Storage
         isStop = false
         lret null
     }
+    persistentId = logId
     echo("end merge")
   }
   
@@ -117,27 +122,26 @@ class Storage
     return val
   }
   
-  Int insert(BKey key) {
-    id := 0
+  Void insert(BKey key, Int logId := 0) {
     lock.sync {
-        id = insertCount
-        ++insertCount
+        //id = insertCount
+        //++insertCount
+        this.logId = logId
         skipList.insert(key)
-        logFile.write(key)        
+        //logFile.write(key)
         lret null
     }
-    return id
   }
   
-  Void commit(Int id) {
-    lock.sync {
-        if (commitPos < id) {
-            logFile.flush
-            commitPos = insertCount-1
-        }
-        lret null
-    }
-  }
+//  Void commit(Int id) {
+//    lock.sync {
+//        if (commitPos < id) {
+//            logFile.flush
+//            commitPos = insertCount-1
+//        }
+//        lret null
+//    }
+//  }
   
 }
 
@@ -153,6 +157,11 @@ internal class StorageRes {
     
     internal Void reload() {
         btree.reload
+    }
+    
+    internal Int logId() {
+        id := btree.store.meta["logId"]
+        return id == null ? -1 : id.toInt
     }
     
     internal Array<Int8>? find(BKey key) {
