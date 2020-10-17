@@ -26,7 +26,7 @@ const class DbTest : Actor {
         task := insertAll(i*100)
         insertTask.add(task)
     }
-    for (i2:=0; i2<100; ++i2) {
+    for (i2:=0; i2<insertTask.size; ++i2) {
         await insertTask[i2]
     }
     insertTask.clear
@@ -37,7 +37,7 @@ const class DbTest : Actor {
         task2 := queryAll(j*100)
         insertTask.add(task2)
     }
-    for (j2:=0; j2<100; ++j2) {
+    for (j2:=0; j2<insertTask.size; ++j2) {
         await insertTask[j2]
     }
     
@@ -45,7 +45,7 @@ const class DbTest : Actor {
     
     d1 := t1 - t0
     d2 := t2 - t1
-    echo("$d1, $d2")
+    echo("END:$d1, $d2")
   }
   
   async Bool insertAll(Int offset) {
@@ -81,12 +81,16 @@ const class DbTest : Actor {
   private async Void insert(HttpClient client, Int i) {
     uri := `/execute`
     uri = uri.plusQuery(["cmd": "key_$i:val_$i"])
+    //echo(uri)
     await client.get(uri)
 
     while (true) {
         buf := await client.read
         if (buf == null) break
-        //echo(buf.readAllStr)
+        res := buf.readAllStr
+        if (res != "true") {
+            echo("ERROR:insert $res, $i")
+        }
     }
   }
   
@@ -100,7 +104,7 @@ const class DbTest : Actor {
         if (buf == null) break
         res := buf.readAllStr
         if (res != "val_$i") {
-            echo("ERROR:$res, $i")
+            echo("ERROR:query $res, $i")
         }
     }
   }

@@ -50,4 +50,25 @@ class SkipListTest : Test
     key.hashKey = str[3..-1].toInt
     return key
   }
+  
+  
+  Void testList() {
+    skip := SkipList()
+    
+    list := Int[,]
+    10.times {
+      list.add(it)
+    }
+    list.shuffle
+    //echo(list)
+    list.each |i|{
+      key := toKey("key$i")
+      key.value = "value$i".toUtf8
+      skip.insert(key)
+    }
+    
+    skip.dump
+    first := Str.fromUtf8(skip.list.first.key)
+    verifyEq(first, "key0")
+  }
 }

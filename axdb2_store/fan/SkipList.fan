@@ -111,11 +111,11 @@ class SkipList
   BKey[] list() {
     res := BKey[,] { capacity = this.size }
     node := head.next[0]
-    while (true) {
-        node = node.next[0]
-        if (node == null) break
+    while (node != null) {
         res.addAll(node.data)
+        node = node.next[0]
     }
+    //echo("list: $res")
     return res
   }
   

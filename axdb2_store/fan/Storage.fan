@@ -126,6 +126,9 @@ class Storage
     val := skipList.find(key)
     if (val != null) return val
     
+    val = immSkipList?.find(key)
+    if (val != null) return val
+    
     res := getRes
     try {
         val = res.find(key)
