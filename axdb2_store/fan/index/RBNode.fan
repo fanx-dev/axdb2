@@ -23,11 +23,11 @@ class BSearchResult : BufUtil {
   }
 }
 
-class RBNode : BNode, BufUtil {
+const class RBNode : BNode, BufUtil {
   //const Int maxSize
   const override Int size
   const override Int id
-  private Buf buf
+  private const Buf buf
   override const Bool isLeaf
 
   private static const Int headerSize := 4 + 1
@@ -36,14 +36,14 @@ class RBNode : BNode, BufUtil {
     this.id = id
     this.buf = buf
 
-    in := buf.in
+    in := this.buf.in
     //maxSize = in.readS4
     size = in.readS4
     isLeaf = in.readBool
   }
 
   override WBNode toWBNode() {
-    buf.seek(0)
+    //buf.seek(0)
     return WBNode.makeBuf(id, buf)
   }
   
@@ -103,8 +103,8 @@ class RBNode : BNode, BufUtil {
       throw IndexErr("i=$i")
     }
     p := headerSize + i * (8+8) + 8
-    in := buf.seek(p).in
-    //in.skip(p)
+    in := buf.in
+    in.skip(p)
     return in.readS8
   }
 
@@ -113,14 +113,14 @@ class RBNode : BNode, BufUtil {
       throw IndexErr("i=$i")
     }
     p := headerSize + i * (8+8)
-    in := buf.seek(p).in
-    //in.skip(p)
+    in := buf.in
+    in.skip(p)
     return in.readS8
   }
 
   override Array<Int8>? getData(BKey key, Int pos) {
-    in := buf.seek(pos).in
-    //in.skip(pos)
+    in := buf.in
+    in.skip(pos)
     
     size := in.readS4
     for (i:=0; i<size; ++i) {
@@ -144,8 +144,8 @@ class RBNode : BNode, BufUtil {
       key := getKey(idx)
       
       if (isLeaf) {
-        in := buf.seek(ptr).in
-        //in.skip(pos)
+        in := buf.in
+        in.skip(ptr)
         Env.cur.out.print("$key:")
         size := in.readS4
         for (i:=0; i<size; ++i) {
