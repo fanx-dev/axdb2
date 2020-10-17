@@ -57,6 +57,8 @@ class Storage
     merger = MergeActor(this)
 //    merger.mergeLater
     this.persistentId = pool.first.logId
+    
+    echo("skipList:$skipList.size")
   }
   
   Void merge() {
@@ -177,8 +179,8 @@ internal class StorageRes {
     }
     
     internal Array<Int8>? find(BKey key) {
-        val := storage.skipList.find(key)
-        if (val != null) return val
+        //val := storage.skipList.find(key)
+        //if (val != null) return val
         return btree.search(key)
     }
 }

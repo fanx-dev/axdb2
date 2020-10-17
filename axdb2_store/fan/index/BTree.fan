@@ -135,6 +135,7 @@ class BTree {
   Void insertAll(BKey[] changes, Int logId := -1) {
     if (changes.size == 0) return
     //store.resetCache
+    //echo(changes)
     
     res := updateAll(root, changes)
     WBNode? newRoot

@@ -31,4 +31,10 @@ class BKey {
     override Str toStr() {
         "$hashKey:"+Str.fromUtf8(key)
     }
+    
+    override Int compare(Obj that) {
+        t := that as BKey
+        if (t == null) return 1
+        return hashKey <=> t.hashKey
+    }
 }

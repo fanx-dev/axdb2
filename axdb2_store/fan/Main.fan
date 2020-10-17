@@ -16,8 +16,8 @@ class Main
   static Void main()
   {
     echo("Hello World")
-    t := SkipListTest()
+    t := MultiKeyTest()
     t.setup
-    t.test
+    t.testBatch
   }
 }

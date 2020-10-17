@@ -181,7 +181,14 @@ class WBNode : BNode, BufUtil {
     item := list[pos]
     //insert before pos
     if (item.hashKey != key.hashKey) {
+        if (pos > 0) {
+            preItem := list[pos-1]
+            if (preItem.hashKey == key.hashKey) {
+                return insertVal(pos-1, key, val)
+            }
+        }
         if (val == null) return 0
+        
         item = WBItem(-1, key.hashKey)
         list.insert(pos, item)
         item.data = [WBItemData(key.key, val)]
