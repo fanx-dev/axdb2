@@ -429,9 +429,12 @@ class RNode
     }
     
     private Void takeSnapshot() {
+        if (stateMachine.isBusy) return
         snapshotPoint := stateMachine.snapshotPoint
         snapshotLimit := this.typeof.pod.config("snapshotLimit", "90000").toInt
+        
         if (lastApplied - snapshotPoint > snapshotLimit) {
+            //echo("takeSnapshot")
             logs.truncBefore(snapshotPoint-snapshotLimit)
             stateMachine.saveSnapshot
         }

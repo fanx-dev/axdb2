@@ -34,6 +34,7 @@ class Storage
   private Bool isStop := false
   
   private MergeActor merger
+  private AtomicBool busy := AtomicBool(false)
   
   new make(File path, Str name) {
     this.path = path
@@ -51,17 +52,25 @@ class Storage
     }
     poolLock = Lock()
     
+    //pool[0]->btree->dump
+    
     merger = MergeActor(this)
 //    merger.mergeLater
     this.persistentId = pool.first.logId
   }
   
   Void merge() {
+    busy.val = true
     merger.mergeLater(0sec)
+  }
+  
+  Bool isBusy() {
+    busy.val
   }
   
   internal Int beginMerge() {
     id := lock.sync {
+        //busy.val = true
         //logFile.reset
         immSkipList = skipList
         skipList = SkipList()
@@ -96,6 +105,7 @@ class Storage
         lret null
     }
     persistentId = logId
+    busy.val = false
     echo("end merge")
   }
   

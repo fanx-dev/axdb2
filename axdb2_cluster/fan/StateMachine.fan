@@ -26,6 +26,7 @@ mixin StateMachine
     
     virtual Bool saveSnapshot() { false }
     virtual Int snapshotPoint() { -1 }
+    virtual Bool isBusy() { true }
     
     virtual Void dump() {}
 }

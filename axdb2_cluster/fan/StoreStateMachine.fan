@@ -19,6 +19,8 @@ class StoreStateMachine : StateMachine {
         return true
     }
     
+    override Bool isBusy() { storage.isBusy }
+    
     override Int snapshotPoint() { storage.persistentId }
     
     override Void set(Str key, Str? val, Int logId) {
