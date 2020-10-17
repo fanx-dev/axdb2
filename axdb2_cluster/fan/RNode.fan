@@ -42,6 +42,7 @@ class RNode
     //Lock stateMachinelock := Lock()
     
     //Lock lock := Lock()
+    static const Bool debug := RNode#.pod.config("debug") == "true"
     
     private Int receiveHeartbeatTime
     private Int lastSendHeartbeatTime
@@ -123,7 +124,7 @@ class RNode
         if (role != Role.leader) {
             return false
         }
-        echo("execute: $command, type:$type")
+        if (debug) echo("execute: $command, type:$type")
         
         logEntry := LogEntry(currentTerm, logs.lastIndex+1, command, type)
         logs.add(logEntry)
@@ -145,6 +146,9 @@ class RNode
                 }
                 await Async.sleep(5ms)
             }
+        }
+        else {
+            logs.flush
         }
         
         if (logEntry.type == 1 || logEntry.type == 2) {
@@ -222,7 +226,7 @@ class RNode
                 }
                 //echo("advanceCommitIndex: $count")
                 if (count > configuration.members.size/2) {
-                    echo("commitIndex to: $i")
+                    if (debug) echo("commitIndex to: $i")
                     commitIndex = i
                 }
             //}
@@ -237,7 +241,7 @@ class RNode
             logEntry := logs.get(lastApplied)
             
             if (logEntry.type == 0) {
-                echo("applay log: $logEntry")
+                if (debug) echo("applay log: $logEntry")
                 stateMachine.apply(logEntry.command, logEntry.index)
             }
         }
@@ -256,7 +260,7 @@ class RNode
         if (req.prevLogIndex != -1) {
             logEntry := logs.get(req.prevLogIndex)
             if (logEntry == null || logEntry.term != req.prevLogTerm) {
-                echo("prevLogIndex error2: $req.prevLogIndex, logEntry")
+                if (debug) echo("prevLogIndex error2: $req.prevLogIndex, logEntry")
                 return AppendEntriesRes(currentTerm, false)
             }
             //echo("=======Logs addAndRemove begin")
@@ -307,7 +311,7 @@ class RNode
     private Void becomeLeader() {
         role = Role.leader
         leaderId = id
-        echo("becomeLeader:$this")
+        if (debug) echo("becomeLeader:$this")
         
         sendHeartbeat
         //execute("becomeLeader", 3)
@@ -352,7 +356,7 @@ class RNode
         if (role == Role.follower) {
             //没有超时，当前领导人存在
             if (now - receiveHeartbeatTime < timeout) {
-                echo("onRequestVote: leader no timeout")
+                if (debug) echo("onRequestVote: leader no timeout")
                 return RequestVoteRes(currentTerm, false)
             }
         }
@@ -362,7 +366,7 @@ class RNode
         }
         
         if (req.term < currentTerm) {
-            echo("onRequestVote: currentTerm error: req.term:$req.term, currentTerm:$currentTerm")
+            if (debug) echo("onRequestVote: currentTerm error: req.term:$req.term, currentTerm:$currentTerm")
             return RequestVoteRes(currentTerm, false)
         }
         
@@ -375,13 +379,13 @@ class RNode
             }
         }
         
-        echo("onRequestVote: already votedFor: $votedFor")
+        if (debug) echo("onRequestVote: already votedFor: $votedFor")
         return RequestVoteRes(currentTerm, false)
     }
     
     ** 开始选举
     private async Void startElection() {
-        echo("startElection:$this")
+        if (debug) echo("startElection:$this")
         ++currentTerm
         votedFor = id
         electionStartTime = TimePoint.nowMillis
@@ -417,7 +421,7 @@ class RNode
                 voteGranted = true
             }
         }
-        echo("voteGranted:$voteGranted, count:$count")
+        if (debug) echo("voteGranted:$voteGranted, count:$count")
         if (voteGranted) {
             becomeLeader
         }
@@ -426,7 +430,7 @@ class RNode
     
     private Void takeSnapshot() {
         snapshotPoint := stateMachine.snapshotPoint
-        snapshotLimit := this.typeof.pod.config("snapshotLimit", "10000").toInt
+        snapshotLimit := this.typeof.pod.config("snapshotLimit", "90000").toInt
         if (lastApplied - snapshotPoint > snapshotLimit) {
             logs.truncBefore(snapshotPoint-snapshotLimit)
             stateMachine.saveSnapshot

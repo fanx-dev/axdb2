@@ -59,8 +59,8 @@ class Logs {
       while (true) {
         try {
           n := logFile.read(pos) |in| {
-            line := in.readLine
-            if (line == null) lret
+            line := in.readUtf
+            //if (line == null) lret
             e := LogEntry.fromStr(line)
             indexToPos[e.index] = pos
             flushIndex = e.index
@@ -70,7 +70,7 @@ class Logs {
           pos += n
         }
         catch (Err e) {
-          e.trace
+          //e.trace
           logFile.truncAfter(pos)
           break
         }
@@ -114,8 +114,8 @@ class Logs {
       if (in == null) {
         return null
       }
-      line := in.readLine
-      if (line == null) return null
+      line := in.readUtf
+      //if (line == null) return null
       return LogEntry.fromStr(line)
     }
     
@@ -194,8 +194,8 @@ class Logs {
       }
       return true
     }
-
-    Void sync() {
+    
+    Void flush() {
       if (list.size == 0) return
       
       basePos := logFile.size
@@ -204,7 +204,7 @@ class Logs {
       list.each |e| {
         indexToPos[e.index] = basePos + tmpBuf.pos
         //echo("===sync $e.index, $pos")
-        tmpBuf.printLine(e.toStr)
+        tmpBuf.writeUtf(e.toStr)
       }
       
       flushIndex = list.last.index
@@ -212,7 +212,10 @@ class Logs {
       tmpBuf.flip
       logFile.write(tmpBuf)
       tmpBuf.clear
+    }
 
+    Void sync() {
+      flush
       logFile.sync
     }
 

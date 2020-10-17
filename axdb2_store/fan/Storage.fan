@@ -39,7 +39,7 @@ class Storage
     this.path = path
     this.name = name
     
-    cacheSize := this.typeof.pod.config("cacheSize", "10000").toInt
+    cacheSize := this.typeof.pod.config("cacheSize", "100000").toInt
     this.cache = LruCache(cacheSize)
     this.skipList = SkipList()
     //this.logFile = LogFile(path, name, skipList)

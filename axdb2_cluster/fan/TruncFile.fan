@@ -72,6 +72,7 @@ class TruncFile {
   }
 
   Void truncAfter(Int pos) {
+    if (pos <= 0) return
     for (i:=parts.size-1; i>=0; --i) {
       p := parts[i]
       if (p.offset > pos) {

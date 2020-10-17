@@ -30,6 +30,7 @@ class StoreStateMachine : StateMachine {
     override Str? get(Str key) {
         bkey := BKey(key.toUtf8)
         bval := storage.find(bkey)
+        if (bval == null) return null
         return Str.fromUtf8(bval)
     }
 }
