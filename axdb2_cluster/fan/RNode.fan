@@ -42,7 +42,7 @@ class RNode
     //Lock stateMachinelock := Lock()
     
     //Lock lock := Lock()
-    static const Bool debug := true//RNode#.pod.config("debug") == "true"
+    static const Log log := Log.get("axdb2_cluster")
     
     private Int receiveHeartbeatTime
     private Int lastSendHeartbeatTime
@@ -134,7 +134,7 @@ class RNode
         if (role != Role.leader) {
             return false
         }
-        if (debug) echo("execute: $command, type:$type")
+        if (log.isDebug) log.debug("execute: $command, type:$type")
         
         logEntry := LogEntry(currentTerm, logs.lastIndex+1, command, type)
         logs.add(logEntry)
@@ -283,7 +283,7 @@ class RNode
                 }
                 //echo("advanceCommitIndex: $count")
                 if (count > configuration.members.size/2) {
-                    if (debug) echo("commitIndex to: $i")
+                    if (log.isDebug) log.debug("commitIndex to: $i")
                     commitIndex = i
                 }
             //}
@@ -298,7 +298,7 @@ class RNode
             logEntry := logs.get(lastApplied)
             
             if (logEntry != null && logEntry.type == 0) {
-                if (debug) echo("applay log: $logEntry")
+                if (log.isDebug) log.debug("applay log: $logEntry")
                 stateMachine.apply(logEntry.command, logEntry.index)
                 takeSnapshot
             }
@@ -323,7 +323,7 @@ class RNode
                     lastIncludedTerm = -1
                 }
                 else {
-                    if (debug) echo("prevLogIndex error2: $req.prevLogIndex, logEntry")
+                    if (log.isDebug) log.debug("prevLogIndex error2: $req.prevLogIndex, logEntry")
                     return AppendEntriesRes(currentTerm, false)
                 }
             }
@@ -429,7 +429,7 @@ class RNode
     private Void becomeLeader() {
         role = Role.leader
         leaderId = id
-        if (debug) echo("becomeLeader:$this")
+        if (log.isDebug) log.debug("becomeLeader:$this")
         
         sendHeartbeat
         //execute("becomeLeader", 3)
@@ -474,7 +474,7 @@ class RNode
         if (role == Role.follower) {
             //没有超时，当前领导人存在
             if (now - receiveHeartbeatTime < timeout) {
-                if (debug) echo("onRequestVote: leader no timeout")
+                if (log.isDebug) log.debug("onRequestVote: leader no timeout")
                 return RequestVoteRes(currentTerm, false)
             }
         }
@@ -484,7 +484,7 @@ class RNode
         }
         
         if (req.term < currentTerm) {
-            if (debug) echo("onRequestVote: currentTerm error: req.term:$req.term, currentTerm:$currentTerm")
+            if (log.isDebug) log.debug("onRequestVote: currentTerm error: req.term:$req.term, currentTerm:$currentTerm")
             return RequestVoteRes(currentTerm, false)
         }
         
@@ -497,13 +497,13 @@ class RNode
             }
         }
         
-        if (debug) echo("onRequestVote: already votedFor: $votedFor")
+        if (log.isDebug) log.debug("onRequestVote: already votedFor: $votedFor")
         return RequestVoteRes(currentTerm, false)
     }
     
     ** 开始选举
     private async Void startElection() {
-        if (debug) echo("startElection:$this")
+        if (log.isDebug) log.debug("startElection:$this")
         ++currentTerm
         votedFor = id
         electionStartTime = TimePoint.nowMillis
@@ -539,7 +539,7 @@ class RNode
                 voteGranted = true
             }
         }
-        if (debug) echo("voteGranted:$voteGranted, count:$count")
+        if (log.isDebug) log.debug("voteGranted:$voteGranted, count:$count")
         if (voteGranted) {
             becomeLeader
         }
@@ -550,10 +550,10 @@ class RNode
         if (installingSnapCount > 0) return
         if (stateMachine.isBusy) return
         snapshotPoint := stateMachine.snapshotPoint
-        snapshotLimit := this.typeof.pod.config("snapshotLimit", "3").toInt
+        snapshotLimit := this.typeof.pod.config("snapshotLimit", "900000").toInt
         
         if (lastApplied - snapshotPoint > snapshotLimit) {
-            echo("takeSnapshot, lastApplied:$lastApplied, snapshotPoint:$snapshotPoint")
+            if (log.isDebug) log.debug("takeSnapshot, lastApplied:$lastApplied, snapshotPoint:$snapshotPoint")
             //logs.truncBefore(snapshotPoint-snapshotLimit)
             logs.truncBefore(snapshotPoint)
             stateMachine.saveSnapshot
