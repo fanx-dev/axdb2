@@ -180,6 +180,8 @@ class RNode
         try {
             offset := 0
             while (true) {
+                if (this.role != Role.leader) break
+                
                 InstallSnapshotReq? req := stateMachine.snapshotChunk(offset)
                 if (req == null) break
                 data := req.data
