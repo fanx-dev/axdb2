@@ -18,8 +18,11 @@ const class RActor : Actor {
   protected override Obj? receive(Obj? msg) {
     if (worker.onReceive(msg)) return null
     
-    if (msg is Uri) {
-        uri := msg as Uri
+    if (msg is List) {
+        list := msg as List
+        uri := list[0] as Uri
+        argUnsafe := list[1] as Unsafe
+
         //echo("RActor receive:$uri")
         method := uri.path[0]
         Obj?[]? args
@@ -28,6 +31,7 @@ const class RActor : Actor {
             typeStr := uri.query["type"]
             sync := uri.query["sync"] == "true"
             type := typeStr == null ? 0 : typeStr.toInt
+            //echo("$uri,$typeStr,$type")
             args = [cmd, type, sync]
         }
         else {
@@ -37,6 +41,10 @@ const class RActor : Actor {
                 Obj? arg := reqStr.in.readObj
                 args = [arg]
             }
+        }
+        
+        if (argUnsafe != null) {
+            args = [argUnsafe.val]
         }
         
         try {

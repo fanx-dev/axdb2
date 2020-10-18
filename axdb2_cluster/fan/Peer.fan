@@ -37,10 +37,27 @@ class Peer
         client.close
         client = HttpClient(id.host, id.port)
     }
+    
+    
+    async InstallSnapshotRes? sendInstallSnapshot(InstallSnapshotReq req) {
+        try {
+            buf := Buf()
+            req.write(buf.out)
+            buf.flip
+            return await _sendPostReq("installSnapshot", buf)
+        }
+        catch {
+            onErr()
+            return null
+        }
+    }
 
     async AppendEntriesRes? sendAppendEntries(AppendEntriesReq req) {
         try {
-            return await _sendReq("appendEntries", req)
+            buf := Buf()
+            req.write(buf.out)
+            buf.flip
+            return await _sendPostReq("appendEntries", buf)
         }
         catch {
             onErr()
@@ -48,8 +65,26 @@ class Peer
         }
     }
     
-    private async Obj? _sendReq(Str method, Obj? args) {
-        uri := `/$method`
+    private async Obj? _sendPostReq(Str path, Buf data) {
+        uri := `/$path`
+        //echo("req: $id$uri")
+        Buf sbuf := NioBuf.makeMem(data.size)
+        sbuf.writeBuf(data)
+        sbuf.flip
+        await client.send("POST", uri, sbuf)
+
+        Str? str
+        while (true) {
+            buf := await client.read
+            if (buf == null) break
+            str = buf.readAllStr
+            //echo("res: $str")
+        }
+        return str.in.readObj
+    }
+    
+    private async Obj? _sendReq(Str path, Obj? args) {
+        uri := `/$path`
         if (args != null) {
             param := Buf()
             param.out.writeObj(args)

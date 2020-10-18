@@ -17,7 +17,7 @@ class RConfiguration
   private File file
   
   new make(Uri self, File dir, Str name) {
-    file = dir + `${name}.conf`
+    file = dir + `${name}-rf.conf`
     if (file.exists) {
       in := file.in
       val := in.readAllStr
@@ -44,7 +44,7 @@ class RConfiguration
   
   private Void save() {
     val := members.map{ it.id }.join(",")
-    file2 := file.parent + `${file.name}.conf.tmp`
+    file2 := file.parent + `${file.name}-rf.conf.tmp`
     file2.out.writeChars(val).sync.close
     file.delete
     file2.rename(file.name)

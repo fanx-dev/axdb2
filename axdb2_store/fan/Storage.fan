@@ -18,8 +18,8 @@ class Storage
   //private LogFile logFile
   internal LruCache cache
   
-  internal File path
-  internal Str name
+  File path
+  Str name
   
   private Lock lock
   

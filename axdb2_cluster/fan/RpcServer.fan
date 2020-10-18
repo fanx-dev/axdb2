@@ -15,9 +15,26 @@ const class RpcServer : HttpHandler {
     uri := req.uri
     
     path := uri.path[0]
-    if (path == "execute" || path == "dump" || path == "appendEntries" || path == "requestVote") {
+    if (path == "execute" || path == "dump" || path == "appendEntries" || 
+        path == "requestVote" || path == "installSnapshot") {
+        
+        Obj? arg := null
+        if (req.method == "POST") {
+            Buf buf := await req.read
+            if (path == "appendEntries") {
+                reqArg := AppendEntriesReq()
+                reqArg.read(buf.in)
+                arg = Unsafe(reqArg)
+            }
+            else if (path == "installSnapshot") {
+                reqArg2 := InstallSnapshotReq()
+                reqArg2.read(buf.in)
+                arg = Unsafe(reqArg2)
+            }
+        }
+        //echo("service: $uri, $arg")
         //await Future
-        f := await actor.send(uri)
+        f := await actor.send([uri, arg])
         //await Promise
         rc := await (f.get as Unsafe).val
         

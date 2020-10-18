@@ -36,6 +36,21 @@ const class LogEntry {
     }
     return LogEntry(vs[1].toInt, vs[2].toInt, vs[3], vs[0].toInt)
   }
+  
+  
+    Void write(OutStream out) {
+        out.writeI8(type)
+        out.writeI8(term)
+        out.writeI8(index)
+        out.writeUtf(command)
+    }
+    
+    new makeStreem(InStream in) {
+        type = in.readS8
+        term =  in.readS8
+        index = in.readS8
+        command = in.readUtf
+    }
 }
 
 class Logs {

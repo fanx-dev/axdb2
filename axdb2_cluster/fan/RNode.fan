@@ -42,7 +42,7 @@ class RNode
     //Lock stateMachinelock := Lock()
     
     //Lock lock := Lock()
-    static const Bool debug := RNode#.pod.config("debug") == "true"
+    static const Bool debug := true//RNode#.pod.config("debug") == "true"
     
     private Int receiveHeartbeatTime
     private Int lastSendHeartbeatTime
@@ -55,6 +55,8 @@ class RNode
     private RConfiguration configuration
     private Uri? leaderId
     
+    private Int installSnapshotCount
+    
     new make(File dir, Str name, Uri id) {
         if (!dir.isDir) {
             throw ArgErr("$dir is not dir")
@@ -65,7 +67,7 @@ class RNode
         
         stateMachine = StoreStateMachine(dir, name)
         configuration = RConfiguration(id, dir, name)
-        metaFile = dir + `${name}-meta`
+        metaFile = dir + `${name}-rf.meta`
         if (metaFile.exists) loadMeta(metaFile)
         else saveMeta
         
@@ -157,6 +159,53 @@ class RNode
         
         takeSnapshot
         return true
+    }
+    
+    private async Bool sendInstallSnapshot(Peer peer) {
+        ++installSnapshotCount
+        success := false
+        try {
+            offset := 0
+            while (true) {
+                snapshotChunk := stateMachine.snapshotChunk(offset)
+                if (snapshotChunk == null) break
+                data := snapshotChunk.first
+                flag := snapshotChunk.second
+                done := flag == -1
+                offset += data.size
+                
+                lastIncludedIndex := 0
+                lastIncludedTerm := 0
+                if (done) {
+                    lastIncludedIndex = stateMachine.snapshotPoint
+                    log := logs.get(lastIncludedIndex)
+                    lastIncludedTerm = log.term
+                }
+                req := InstallSnapshotReq {
+                    it.term = currentTerm
+                    it.leaderId = this.leaderId
+                    it.lastIncludedIndex = lastIncludedIndex
+                    it.lastIncludedTerm = lastIncludedTerm
+                    it.offset = offset
+                    it.data = data
+                    it.done = done
+                    it.flag = flag
+                }
+                res := await peer.sendInstallSnapshot(req)
+                if (res == null) break
+                if (res.term != currentTerm) break
+                if (done) {
+                    success = true
+                    peer.nextIndex = lastIncludedIndex+1
+                    peer.matchIndex = lastIncludedIndex
+                    break
+                }
+            }
+        }
+        finally {
+            --installSnapshotCount
+        }
+        return success
     }
     
     private async Bool replicateTo(Peer peer, Bool heartbeat) {
@@ -294,6 +343,13 @@ class RNode
         return AppendEntriesRes(currentTerm, true)
     }
     
+    InstallSnapshotRes onInstallSnapshot(InstallSnapshotReq req) {
+        if (req.term < currentTerm) return InstallSnapshotRes(currentTerm)
+        //TODO
+        
+        return InstallSnapshotRes(currentTerm)
+    }
+    
     private Void sendHeartbeat() {
         lastSendHeartbeatTime = TimePoint.nowMillis
         configuration.eachPeer(id) |peer|{
@@ -429,6 +485,7 @@ class RNode
     }
     
     private Void takeSnapshot() {
+        if (installSnapshotCount > 0) return
         if (stateMachine.isBusy) return
         snapshotPoint := stateMachine.snapshotPoint
         snapshotLimit := this.typeof.pod.config("snapshotLimit", "90000").toInt
