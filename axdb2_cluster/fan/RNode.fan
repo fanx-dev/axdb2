@@ -55,7 +55,12 @@ class RNode
     private RConfiguration configuration
     private Uri? leaderId
     
-    private Int installSnapshotCount
+    private Int installingSnapCount := 0
+    private Int lastIncludedIndex := -1
+    private Int lastIncludedTerm := -1
+    
+    private File dir
+    private Str name
     
     new make(File dir, Str name, Uri id) {
         if (!dir.isDir) {
@@ -64,6 +69,9 @@ class RNode
         if (!dir.exists) {
             dir.create
         }
+        
+        this.dir = dir
+        this.name = name
         
         stateMachine = StoreStateMachine(dir, name)
         configuration = RConfiguration(id, dir, name)
@@ -157,22 +165,21 @@ class RNode
             configuration.apply(logEntry, logs.lastIndex)
         }
         
-        takeSnapshot
         return true
     }
     
     private async Bool sendInstallSnapshot(Peer peer) {
-        ++installSnapshotCount
+        ++installingSnapCount
+        peer.installingSnap = true
         success := false
         try {
             offset := 0
             while (true) {
-                snapshotChunk := stateMachine.snapshotChunk(offset)
-                if (snapshotChunk == null) break
-                data := snapshotChunk.first
-                flag := snapshotChunk.second
-                done := flag == -1
+                InstallSnapshotReq? req := stateMachine.snapshotChunk(offset)
+                if (req == null) break
+                data := req.data
                 offset += data.size
+                done := req.done
                 
                 lastIncludedIndex := 0
                 lastIncludedTerm := 0
@@ -181,19 +188,15 @@ class RNode
                     log := logs.get(lastIncludedIndex)
                     lastIncludedTerm = log.term
                 }
-                req := InstallSnapshotReq {
+                req {
                     it.term = currentTerm
                     it.leaderId = this.leaderId
                     it.lastIncludedIndex = lastIncludedIndex
                     it.lastIncludedTerm = lastIncludedTerm
-                    it.offset = offset
-                    it.data = data
-                    it.done = done
-                    it.flag = flag
                 }
                 res := await peer.sendInstallSnapshot(req)
                 if (res == null) break
-                if (res.term != currentTerm) break
+                if (res.term != req.term) break
                 if (done) {
                     success = true
                     peer.nextIndex = lastIncludedIndex+1
@@ -202,13 +205,16 @@ class RNode
                 }
             }
         }
-        finally {
-            --installSnapshotCount
+        catch {
         }
+        --installingSnapCount
+        peer.installingSnap = false
         return success
     }
     
     private async Bool replicateTo(Peer peer, Bool heartbeat) {
+        if (peer.installingSnap) return false
+        
         nextIndex := peer.nextIndex
         LogEntry[]? logList
         
@@ -216,12 +222,14 @@ class RNode
       
         logLastIndex := logs.lastIndex
         if (nextIndex < logs.minIndex) {
-            echo("InstallSnapshot")
-            logList = [,]
+            echo("InstallSnapshot:$peer, minIndex:logs.minIndex")
+            //logList = [,]
+            sendInstallSnapshot(peer)
+            return false
         }
         else if (logLastIndex >= nextIndex) {
             logList = logs.getFrom(nextIndex)
-            echo("replicateTo2: lastIndex:$logs.lastIndex, nextIndex:$nextIndex, $peer, $logList")
+            //echo("replicateTo2: lastIndex:$logs.lastIndex, nextIndex:$nextIndex, $peer, $logList")
         }
         else {
             if (heartbeat) {
@@ -289,9 +297,10 @@ class RNode
             ++lastApplied
             logEntry := logs.get(lastApplied)
             
-            if (logEntry.type == 0) {
+            if (logEntry != null && logEntry.type == 0) {
                 if (debug) echo("applay log: $logEntry")
                 stateMachine.apply(logEntry.command, logEntry.index)
+                takeSnapshot
             }
         }
     }
@@ -309,8 +318,14 @@ class RNode
         if (req.prevLogIndex != -1) {
             logEntry := logs.get(req.prevLogIndex)
             if (logEntry == null || logEntry.term != req.prevLogTerm) {
-                if (debug) echo("prevLogIndex error2: $req.prevLogIndex, logEntry")
-                return AppendEntriesRes(currentTerm, false)
+                if (req.prevLogIndex == lastIncludedIndex && lastIncludedTerm == req.prevLogTerm) {
+                    lastIncludedIndex = -1
+                    lastIncludedTerm = -1
+                }
+                else {
+                    if (debug) echo("prevLogIndex error2: $req.prevLogIndex, logEntry")
+                    return AppendEntriesRes(currentTerm, false)
+                }
             }
             //echo("=======Logs addAndRemove begin")
             //logs.dump
@@ -344,8 +359,55 @@ class RNode
     }
     
     InstallSnapshotRes onInstallSnapshot(InstallSnapshotReq req) {
-        if (req.term < currentTerm) return InstallSnapshotRes(currentTerm)
-        //TODO
+        receiveHeartbeatTime = TimePoint.nowMillis
+        echo("onInstallSnapshot $req")
+        if (req.term < currentTerm) {
+            echo("onInstallSnapshot fail: term:$req.term, $currentTerm")
+            return InstallSnapshotRes(currentTerm)
+        }
+        leaderId = req.leaderId
+        if (req.offset == 0) {
+            temDir := dir + `$name-snapshot/`
+            if (temDir.exists) {
+                temDir.delete
+            }
+            temDir.create
+        }
+        
+        file := dir + `$name-snapshot/$name-${req.fileId}.dat`
+        if (req.fileId == -1) {
+            file = dir + `$name-snapshot/${name}.meta`
+        }
+        buf := file.open
+        buf.seek(req.fileOffset)
+        buf.out.writeBytes(req.data)
+        buf.close
+        
+        if (req.done) {
+            lastIncludedIndex = req.lastIncludedIndex
+            lastIncludedTerm = req.lastIncludedTerm
+            temDir := dir + `$name-snapshot/`
+            temDir.listFiles.each | f| {
+                f.copyInto(dir, ["overwrite":true])
+            }
+            stateMachine = StoreStateMachine(dir, name)
+            
+            //remove log file
+            dir.listFiles.each | f| {
+                if (f.name.startsWith(name+"-log.")) {
+                    f.delete
+                }
+            }
+            logs = Logs(dir, name)
+            
+            snapshotPoint := stateMachine.snapshotPoint
+            if (snapshotPoint > 0) {
+                commitIndex = snapshotPoint
+                lastApplied = snapshotPoint
+            }
+            
+            saveMeta
+        }
         
         return InstallSnapshotRes(currentTerm)
     }
@@ -485,14 +547,15 @@ class RNode
     }
     
     private Void takeSnapshot() {
-        if (installSnapshotCount > 0) return
+        if (installingSnapCount > 0) return
         if (stateMachine.isBusy) return
         snapshotPoint := stateMachine.snapshotPoint
-        snapshotLimit := this.typeof.pod.config("snapshotLimit", "90000").toInt
+        snapshotLimit := this.typeof.pod.config("snapshotLimit", "3").toInt
         
         if (lastApplied - snapshotPoint > snapshotLimit) {
-            //echo("takeSnapshot")
-            logs.truncBefore(snapshotPoint-snapshotLimit)
+            echo("takeSnapshot, lastApplied:$lastApplied, snapshotPoint:$snapshotPoint")
+            //logs.truncBefore(snapshotPoint-snapshotLimit)
+            logs.truncBefore(snapshotPoint)
             stateMachine.saveSnapshot
         }
     }

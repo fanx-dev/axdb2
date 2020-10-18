@@ -22,6 +22,8 @@ class Peer
     ** 对于每一个服务器，已经复制给他的日志的最高索引值
     Int matchIndex := -1
     
+    Bool installingSnap := false
+    
     private HttpClient client
     
     new make(Uri id) {
@@ -41,6 +43,7 @@ class Peer
     
     async InstallSnapshotRes? sendInstallSnapshot(InstallSnapshotReq req) {
         try {
+            echo("sendInstallSnapshot $req")
             buf := Buf()
             req.write(buf.out)
             buf.flip

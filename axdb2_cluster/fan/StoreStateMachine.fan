@@ -23,34 +23,48 @@ class StoreStateMachine : StateMachine {
     
     override Int snapshotPoint() { storage.persistentId }
     
-    override Tuple<Array<Int8>, Int>? snapshotChunk(Int offset) {
-      fileId := 0
-      pos := 0
-      while (true) {
-        file := (storage.path+`${storage.name}_${fileId}.dat`)
-        if (!file.exists) break
-        
-        if (offset > pos && offset < (pos + file.size) ) {
-            buf := file.open
-            buf.seek(offset - pos)
-            data := Array<Int8>(8*1024)
-            n := buf.in.readBytes(data)
-            buf.close
-            if (n > 0) {
-                return Tuple<Array<Int8>, Int>(data, fileId)
-            }
+    override InstallSnapshotReq? snapshotChunk(Int offset) {
+        fileId := 0
+        pos := 0
+        while (true) {
+          file := (storage.path+`${storage.name}-${fileId}.dat`)
+          echo("$file, $file.exists")
+          if (!file.exists) break
+
+          if (offset >= pos && offset < (pos + file.size) ) {
+              buf := file.open
+              buf.seek(offset - pos)
+              data := Array<Int8>(8*1024)
+              n := buf.in.readBytes(data)
+              buf.close
+              if (n > 0) {
+                  req := InstallSnapshotReq()
+                  req.offset = offset
+                  req.fileId = fileId
+                  req.fileOffset = offset - pos
+                  req.data = data
+                  req.done = false
+                  return req
+              }
+          }
+          else {
+              pos += file.size
+          }
+          ++fileId
         }
-        else {
-            pos += file.size
-        }
-        ++fileId
-      }
-      file := (storage.path+`${storage.name}.meta`)
-      buf := file.open
-      data := Array<Int8>(file.size)
-      n := buf.in.readBytes(data)
-      buf.close
-      return Tuple<Array<Int8>, Int>(data, -1)
+        file := (storage.path+`${storage.name}.meta`)
+        buf := file.open
+        data := Array<Int8>(file.size)
+        n := buf.in.readBytes(data)
+        buf.close
+      
+        req := InstallSnapshotReq()
+        req.offset = offset
+        req.fileId = -1
+        req.fileOffset = 0
+        req.data = data
+        req.done = true
+        return req
     }
     
     override Void set(Str key, Str? val, Int logId) {

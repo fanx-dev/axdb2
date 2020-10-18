@@ -109,9 +109,15 @@ class InstallSnapshotReq {
     Int offset	//分块在快照中的字节偏移量
     Array<Int8>? data	//从偏移量开始的快照分块的原始字节
     Bool done	//如果这是最后一个分块则为 true
-    Int flag
+
+    Int fileId
+    Int fileOffset
     
     new make() {}
+    
+    override Str toStr() {
+        "term:$term, offset:$offset, index:$lastIncludedIndex, datasize:$data.size, done:$done, fileId:$fileId, fileOffset:$fileOffset"
+    }
     
     Void write(OutStream out) {
         out.writeI8(term)
@@ -122,7 +128,8 @@ class InstallSnapshotReq {
         out.writeI4(data.size)
         out.writeBytes(data)
         out.writeBool(done)
-        out.writeI4(flag)
+        out.writeI8(fileId)
+        out.writeI8(fileOffset)
     }
     
     Void read(InStream in) {
@@ -135,10 +142,12 @@ class InstallSnapshotReq {
         data = Array<Int8>(dataSize)
         in.readBytes(data)
         done = in.readBool
-        flag = in.readS4
+        fileId = in.readS8
+        fileOffset = in.readS8
     }
 }
 
+@Serializable
 class InstallSnapshotRes {
     Int term  //当前任期号（currentTerm），便于领导人更新自己
     

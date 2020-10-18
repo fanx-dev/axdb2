@@ -27,7 +27,7 @@ mixin StateMachine
     virtual Bool saveSnapshot() { false }
     virtual Int snapshotPoint() { -1 }
     virtual Bool isBusy() { true }
-    virtual Tuple<Array<Int8>, Int>? snapshotChunk(Int offset) { null }
+    virtual InstallSnapshotReq? snapshotChunk(Int offset) { null }
     
     virtual Void dump() {}
 }

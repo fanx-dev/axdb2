@@ -12,7 +12,7 @@ const class RActor : Actor {
 
   new make(File dir, Str name, Uri id) : super.make() {
     node = Unsafe(RNode(dir, name, id))
-    this.sendLater(checkTime, "checkTimeout")
+    this.sendLater(1sec, "checkTimeout")
   }
 
   protected override Obj? receive(Obj? msg) {
