@@ -70,6 +70,11 @@ class RNode
             dir.create
         }
         
+        lockFile := dir + `${name}.lock`
+        if (lockFile.exists) throw Err("$name already opened")
+        lockFile.writeAllStr(DateTime.now.toStr)
+        lockFile.deleteOnExit
+        
         this.dir = dir
         this.name = name
         
@@ -203,6 +208,7 @@ class RNode
                     peer.matchIndex = lastIncludedIndex
                     break
                 }
+                await Async.sleep(5ms)
             }
         }
         catch {
