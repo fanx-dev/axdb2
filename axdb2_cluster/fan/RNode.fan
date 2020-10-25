@@ -48,7 +48,7 @@ class RNode
     private Int lastSendHeartbeatTime
     private Int electionStartTime
     
-    private Int timeout := 200
+    private Int timeout := this.typeof.pod.config("timeout", "2000").toInt
 
     ** local server id
     private Uri id
@@ -448,24 +448,25 @@ class RNode
     }
     
     
-    internal Void checkTimeout() {
+    internal Void checkTimeout(Int heartbeatTime) {
         //echo("checkTimeout:$this")
         now := TimePoint.nowMillis
+        randomTimeout := timeout + Int.random(0..timeout)
         // 心跳超时
         if (role == Role.follower) {
-            if (now - receiveHeartbeatTime > timeout || votedFor != null) {
+            if (now - receiveHeartbeatTime > randomTimeout || votedFor != null) {
                 role = Role.candidate
                 startElection
             }
         }
         // 如果选举过程超时，再次发起一轮选举
         else if (role == Role.candidate) {
-            if (now - electionStartTime > Int.random(timeout..2000)) {
+            if (now - electionStartTime > randomTimeout) {
                 startElection
             }
         }
         else if (role == Role.leader) {
-            if (now - lastSendHeartbeatTime > timeout/2) {
+            if (now - lastSendHeartbeatTime > heartbeatTime) {
                 sendHeartbeat
             }
         }

@@ -4,12 +4,12 @@ High performance key-value database
 # usage
 start new instance:
 ```
-fan axdb2_cluster testData/db http://localhost:8080
+fan axdb2_cluster testData/db/ http://localhost:8080
 ```
 
 put data:
 ```
-curl -v 'localhost:8080/execute?cmd=key_0%3Aval_0'
+curl -v 'localhost:8080/execute?cmd=key_0%3Aval_0&sync=false'
 ```
 
 get data:

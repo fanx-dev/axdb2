@@ -8,11 +8,11 @@ const class RActor : Actor {
 
   const Unsafe<RNode> node
   
-  static const Duration checkTime = 50ms
+  const Int heartbeatTime = this.typeof.pod.config("heartbeatTime", "300").toInt
 
   new make(File dir, Uri id) : super.make() {
     node = Unsafe(RNode(dir, id))
-    this.sendLater(1sec, "checkTimeout")
+    this.sendLater(Duration.fromMillis(heartbeatTime)+2sec, "checkTimeout")
   }
 
   protected override Obj? receive(Obj? msg) {
@@ -57,8 +57,8 @@ const class RActor : Actor {
         }
     }
     else if (msg == "checkTimeout") {
-        node.val.checkTimeout
-        this.sendLater(checkTime, "checkTimeout")
+        node.val.checkTimeout(heartbeatTime)
+        this.sendLater(Duration.fromMillis(heartbeatTime), "checkTimeout")
         return null
     }
     
