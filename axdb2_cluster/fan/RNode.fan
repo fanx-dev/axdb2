@@ -60,9 +60,8 @@ class RNode
     private Int lastIncludedTerm := -1
     
     private File dir
-    private Str name
     
-    new make(File dir, Str name, Uri id) {
+    new make(File dir, Uri id) {
         if (!dir.isDir) {
             throw ArgErr("$dir is not dir")
         }
@@ -70,17 +69,16 @@ class RNode
             dir.create
         }
         
-        lockFile := dir + `${name}.lock`
-        if (lockFile.exists) throw Err("$name already opened")
+        lockFile := dir + `lock`
+        if (lockFile.exists) throw Err("dir already opened")
         lockFile.writeAllStr(DateTime.now.toStr)
         lockFile.deleteOnExit
         
         this.dir = dir
-        this.name = name
         
-        stateMachine = StoreStateMachine(dir, name)
-        configuration = RConfiguration(id, dir, name)
-        metaFile = dir + `${name}-rf.meta`
+        stateMachine = StoreStateMachine(dir)
+        configuration = RConfiguration(id, dir)
+        metaFile = dir + `rf.meta`
         if (metaFile.exists) loadMeta(metaFile)
         else saveMeta
         
@@ -91,7 +89,7 @@ class RNode
         }
         
         this.id = id
-        logs = Logs(dir, name)
+        logs = Logs(dir)
     }
 
     override Str toStr() {
@@ -375,16 +373,16 @@ class RNode
         }
         leaderId = req.leaderId
         if (req.offset == 0) {
-            temDir := dir + `$name-snapshot/`
+            temDir := dir + `snapshot/`
             if (temDir.exists) {
                 temDir.delete
             }
             temDir.create
         }
         
-        file := dir + `$name-snapshot/$name-${req.fileId}.dat`
+        file := dir + `snapshot/data-${req.fileId}.dat`
         if (req.fileId == -1) {
-            file = dir + `$name-snapshot/${name}.meta`
+            file = dir + `snapshot/data.meta`
         }
         buf := file.open
         buf.seek(req.fileOffset)
@@ -394,19 +392,19 @@ class RNode
         if (req.done) {
             lastIncludedIndex = req.lastIncludedIndex
             lastIncludedTerm = req.lastIncludedTerm
-            temDir := dir + `$name-snapshot/`
+            temDir := dir + `snapshot/`
             temDir.listFiles.each | f| {
                 f.copyInto(dir, ["overwrite":true])
             }
-            stateMachine = StoreStateMachine(dir, name)
+            stateMachine = StoreStateMachine(dir)
             
             //remove log file
             dir.listFiles.each | f| {
-                if (f.name.startsWith(name+"-log.")) {
+                if (f.name.startsWith("log")) {
                     f.delete
                 }
             }
-            logs = Logs(dir, name)
+            logs = Logs(dir)
             
             snapshotPoint := stateMachine.snapshotPoint
             if (snapshotPoint > 0) {

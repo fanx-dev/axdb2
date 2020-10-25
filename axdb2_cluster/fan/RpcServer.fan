@@ -7,8 +7,8 @@ const class RpcServer : HttpHandler {
 
   const RActor actor
 
-  new make(File dir, Str name, Uri id) {
-    actor = RActor(dir, name, id)
+  new make(File dir, Uri id) {
+    actor = RActor(dir, id)
   }
 
   override async Void onHttpService(HttpReq req, HttpRes res) {

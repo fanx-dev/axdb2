@@ -65,9 +65,9 @@ class Logs {
         logFile.maxSize = size
     }
 
-    new make(File dir, Str name) {
+    new make(File dir) {
       indexToPos = OrderedMap<Int,Int>()
-      logFile = TruncFile(dir, name+"-log")
+      logFile = TruncFile(dir, "log")
 
       //rebuild index
       pos := logFile.minPos

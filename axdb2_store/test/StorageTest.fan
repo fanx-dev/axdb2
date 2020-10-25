@@ -7,14 +7,13 @@ using concurrent
 class StorageTest : Test
 {
   File path := File(`data/`)
-  Str name := "storage-test"
   
   override Void setup() {
     path.delete
   }
   
   Void test() {
-    storage := Storage(path, name)
+    storage := Storage(path)
     
     list := Int[,]
     1000.times {

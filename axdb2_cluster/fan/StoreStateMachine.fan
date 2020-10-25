@@ -10,8 +10,8 @@ using axdb2_store
 class StoreStateMachine : StateMachine {
     private Storage storage
     
-    new make(File dir, Str name) {
-        storage = Storage(dir, name)
+    new make(File dir) {
+        storage = Storage(dir)
     }
 
     override Bool saveSnapshot() {
@@ -27,7 +27,7 @@ class StoreStateMachine : StateMachine {
         fileId := 0
         pos := 0
         while (true) {
-          file := (storage.path+`${storage.name}-${fileId}.dat`)
+          file := (storage.path+`data-${fileId}.dat`)
           echo("$file, $file.exists")
           if (!file.exists) break
 
@@ -52,7 +52,7 @@ class StoreStateMachine : StateMachine {
           }
           ++fileId
         }
-        file := (storage.path+`${storage.name}.meta`)
+        file := (storage.path+`data.meta`)
         buf := file.open
         data := Array<Int8>(file.size)
         n := buf.in.readBytes(data)

@@ -8,18 +8,17 @@
 using asyncServer
 
 **
-** fan axdb2_cluster testData/db http://localhost:8080
+** fan axdb2_cluster testData/db/ http://localhost:8080
 **
 class Main
 {
   static Void main(Str[] args) {
-    file := args[0].toUri
-    dir := file.parent.toFile
+    file := args[0].toUri.toFile
     
     uri := args[1].toUri
     Server {
       port = uri.port
-      handler = RpcServer(dir, file.name, uri)
+      handler = RpcServer(file, uri)
     }.start
   }
 }

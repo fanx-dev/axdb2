@@ -16,7 +16,7 @@ class LogTest : Test
 
   Void test1()
   {
-    logs := Logs(dir, "test1")
+    logs := Logs(dir)
     
     e := LogEntry(1, 1, "abc")
     
@@ -31,7 +31,7 @@ class LogTest : Test
   
   Void test2()
   {
-    logs := Logs(File.fromPath("data/"), "test1")
+    logs := Logs(File.fromPath("data/"))
     
     e := LogEntry(1, 1, "abc")
     
@@ -49,7 +49,7 @@ class LogTest : Test
   
   Void test3()
   {
-    logs := Logs(File.fromPath("data/"), "test1")
+    logs := Logs(File.fromPath("data/"))
     
     e := LogEntry(1, 1, "123")
     e1 := LogEntry(1, 2, "234")
@@ -72,7 +72,7 @@ class LogTest : Test
   
   Void testTruncBefore()
   {
-    logs := Logs(File.fromPath("data/"), "testTrunc")
+    logs := Logs(File.fromPath("data/"))
     logs.setPartFileSize(3)
     
     e := LogEntry(1, 1, "123")

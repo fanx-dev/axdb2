@@ -42,7 +42,7 @@ const class MergeActor : BaseActor {
     
     new make(Storage storage) {
         this.storage = Unsafe(storage)
-        store := PageMgr(storage.path, storage.name)
+        store := PageMgr(storage.path, "data")
         btree = Unsafe(BTree(store, "table1", storage.cache))
     }
     

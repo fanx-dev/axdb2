@@ -19,7 +19,6 @@ class Storage
   internal LruCache cache
   
   File path
-  Str name
   
   private Lock lock
   
@@ -36,9 +35,8 @@ class Storage
   private MergeActor merger
   private AtomicBool busy := AtomicBool(false)
   
-  new make(File path, Str name) {
+  new make(File path) {
     this.path = path
-    this.name = name
     
     cacheSize := this.typeof.pod.config("cacheSize", "100000").toInt
     this.cache = LruCache(cacheSize)
@@ -168,7 +166,7 @@ internal class StorageRes {
     
     new make(Storage storage) {
         this.storage = storage
-        store := PageMgr(storage.path, storage.name, true)
+        store := PageMgr(storage.path, "data", true)
         btree = BTree(store, "table1", storage.cache)
     }
     

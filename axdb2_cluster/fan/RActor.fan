@@ -10,8 +10,8 @@ const class RActor : Actor {
   
   static const Duration checkTime = 50ms
 
-  new make(File dir, Str name, Uri id) : super.make() {
-    node = Unsafe(RNode(dir, name, id))
+  new make(File dir, Uri id) : super.make() {
+    node = Unsafe(RNode(dir, id))
     this.sendLater(1sec, "checkTimeout")
   }
 
