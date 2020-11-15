@@ -15,7 +15,9 @@ class Storage
   internal SkipList skipList
   internal SkipList? immSkipList
   
-  //private LogFile logFile
+  private LogFile? logFile
+  private Int mergeLimit
+
   internal LruCache cache
   
   File path
@@ -23,7 +25,7 @@ class Storage
   private Lock lock
   
 //  private Int insertCount := 0
-//  private Int commitPos := -1
+  private Int commitPos := -1
   private Int logId := -1
   Int persistentId := -1 { private set }
   
@@ -35,13 +37,14 @@ class Storage
   private MergeActor merger
   private AtomicBool busy := AtomicBool(false)
   
-  new make(File path) {
+  new make(File path, Bool isPersistent := true) {
     this.path = path
     
+    mergeLimit = this.typeof.pod.config("mergeLimit", "1000").toInt
     cacheSize := this.typeof.pod.config("cacheSize", "100000").toInt
     this.cache = LruCache(cacheSize)
     this.skipList = SkipList()
-    //this.logFile = LogFile(path, name, skipList)
+    if (isPersistent) this.logFile = LogFile(path, "data", skipList)
     this.lock = Lock()
     
     poolSize = 10
@@ -71,7 +74,7 @@ class Storage
   internal Int beginMerge() {
     id := lock.sync {
         //busy.val = true
-        //logFile.reset
+        if (logFile != null) logFile.reset
         immSkipList = skipList
         skipList = SkipList()
         lret logId
@@ -86,10 +89,12 @@ class Storage
         lret null
     }
     
-//    lock.sync {
-//        logFile.reset
-//        lret null
-//    }
+    if (logFile != null) {
+       lock.sync {
+           logFile.reset
+           lret null
+       }
+    }
     
     while (true) {
         safe := poolLock.sync {
@@ -143,21 +148,24 @@ class Storage
         //++insertCount
         this.logId = logId
         skipList.insert(key)
-        //logFile.write(key)
+        if (logFile != null) logFile.write(key)
         lret null
     }
   }
   
-//  Void commit(Int id) {
-//    lock.sync {
-//        if (commitPos < id) {
-//            logFile.flush
-//            commitPos = insertCount-1
-//        }
-//        lret null
-//    }
-//  }
-  
+   Void commit(Int id) {
+     if (logFile == null) return
+     lock.sync {
+         if (commitPos < id) {
+             logFile.flush
+             commitPos = id
+         }
+         if (skipList.size > mergeLimit) {
+            merge
+         }
+         lret null
+     }
+   }
 }
 
 internal class StorageRes {

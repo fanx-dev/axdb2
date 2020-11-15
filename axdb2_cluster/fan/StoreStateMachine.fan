@@ -11,7 +11,7 @@ class StoreStateMachine : StateMachine {
     private Storage storage
     
     new make(File dir) {
-        storage = Storage(dir)
+        storage = Storage(dir, false)
     }
 
     override Bool saveSnapshot() {
