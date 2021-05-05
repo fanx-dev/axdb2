@@ -1,6 +1,10 @@
 # axdb2
 High performance key-value database
 
+- Distributed: Raft consensus protocol
+- Storage Engine: LSM-Tree / B+Tree
+- Asynchronous IO: async/await based
+
 # usage
 start new instance:
 ```
